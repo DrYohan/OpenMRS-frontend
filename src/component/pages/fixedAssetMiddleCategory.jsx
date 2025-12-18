@@ -174,9 +174,7 @@ const FixedAssetMiddleCategory = () => {
   return (
     <div className="fixed-asset-page">
       <div className="fixed-asset-container">
-        <h1 className="fixed-asset-title">
-          Fixed Asset - Middle Category Management
-        </h1>
+        <h1 className="fixed-asset-title">Fixed Asset - Middle Category</h1>
 
         <div className="fixed-asset-form">
           <div className="form-section">

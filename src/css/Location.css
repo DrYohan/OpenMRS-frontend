@@ -241,8 +241,8 @@
 
 /* Browse button - Purple */
 .btn-browse {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background-color: #fd9d0a;
+  color: rgb(255, 0, 0);
 }
 
 .btn-browse:hover:not(:disabled) {

@@ -4,16 +4,40 @@ import "../css/Navbar.css";
 
 const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [mainDropdownOpen, setMainDropdownOpen] = useState(false);
+  const [assetDropdownOpen, setAssetDropdownOpen] = useState(false);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
+  };
+
+  const toggleMainDropdown = (e) => {
+    e.preventDefault();
+    setMainDropdownOpen(!mainDropdownOpen);
+    if (assetDropdownOpen) setAssetDropdownOpen(false);
+  };
+
+  const toggleAssetDropdown = (e) => {
+    e.preventDefault();
+    setAssetDropdownOpen(!assetDropdownOpen);
+    if (mainDropdownOpen) setMainDropdownOpen(false);
+  };
+
+  const closeAllDropdowns = () => {
+    setMainDropdownOpen(false);
+    setAssetDropdownOpen(false);
+    setIsMenuOpen(false);
+  };
+
+  const handleNavClick = () => {
+    closeAllDropdowns();
   };
 
   return (
     <nav className="navbar">
       <div className="navbar-container">
         {/* Logo */}
-        <Link to="/home" className="navbar-logo">
+        <Link to="/home" className="navbar-logo" onClick={closeAllDropdowns}>
           <div className="logo-icon">
             <svg
               width="40"
@@ -32,36 +56,93 @@ const Navbar = () => {
               </defs>
             </svg>
           </div>
-          <span className="logo-text ">Inventory Management System</span>
+          <span className="logo-text">Inventory Management System</span>
         </Link>
 
         {/* Desktop Navigation */}
         <ul className={`nav-menu ${isMenuOpen ? "active" : ""}`}>
           <li className="nav-item">
-            <Link to="/home" className="nav-link">
+            <Link to="/home" className="nav-link" onClick={handleNavClick}>
               Home
             </Link>
           </li>
 
-          <li className="nav-item">
-            <Link to="/center" className="nav-link">
-              Center
-            </Link>
+          {/* Main Dropdown */}
+          <li
+            className={`nav-item dropdown ${mainDropdownOpen ? "active" : ""}`}
+          >
+            <button
+              className="nav-link dropdown-toggle"
+              onClick={toggleMainDropdown}
+            >
+              Main
+              <span className="dropdown-arrow">▼</span>
+            </button>
+
+            <ul className={`dropdown-menu ${mainDropdownOpen ? "active" : ""}`}>
+              <li className="dropdown-item">
+                <Link
+                  to="/center"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Center
+                </Link>
+              </li>
+              <li className="dropdown-item">
+                <Link
+                  to="/location"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Location
+                </Link>
+              </li>
+              <li className="dropdown-item">
+                <Link
+                  to="/department"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Department
+                </Link>
+              </li>
+            </ul>
           </li>
-          <li className="nav-item">
-            <Link to="/location" className="nav-link">
-              Location
-            </Link>
-          </li>
-          <li className="nav-item">
-            <Link to="/department" className="nav-link">
-              Department
-            </Link>
-          </li>
-          <li className="nav-item">
-            <Link to="/fixed-asset" className="nav-link">
-              Fixed Asset
-            </Link>
+
+          {/* Asset Dropdown */}
+          <li
+            className={`nav-item dropdown ${assetDropdownOpen ? "active" : ""}`}
+          >
+            <button
+              className="nav-link dropdown-toggle"
+              onClick={toggleAssetDropdown}
+            >
+              Asset
+              <span className="dropdown-arrow">▼</span>
+            </button>
+            <ul
+              className={`dropdown-menu ${assetDropdownOpen ? "active" : ""}`}
+            >
+              <li className="dropdown-item">
+                <Link
+                  to="/fixed-asset"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Fixed Asset
+                </Link>
+              </li>
+              <li className="dropdown-item">
+                <Link
+                  to="/item-grn"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Item-GRN
+                </Link>
+              </li>
+            </ul>
           </li>
         </ul>
 
