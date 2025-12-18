@@ -113,7 +113,7 @@ const Location = () => {
   return (
     <div className="location-page">
       <div className="location-container">
-        <h1 className="location-title">Location Management</h1>
+        <h1 className="location-title">Location</h1>
 
         <div className="location-form">
           <div className="form-section">
@@ -224,10 +224,11 @@ const Location = () => {
                 SAVE
               </button>
               <button
-                className="btn-action btn-browse"
+                className="btn-action "
                 onClick={handleBrowse}
                 type="button"
                 disabled={isLoading}
+                style={{ backgroundColor: "#fd9d0a" }}
               >
                 <span className="btn-icon">🔍</span>
                 BROWSE

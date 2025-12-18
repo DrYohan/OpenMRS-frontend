@@ -189,7 +189,7 @@ const Department = () => {
   return (
     <div className="department-page">
       <div className="department-container">
-        <h1 className="department-title">Department Management</h1>
+        <h1 className="department-title">Department</h1>
 
         <div className="department-form">
           <div className="form-section">
@@ -326,10 +326,11 @@ const Department = () => {
                 SAVE
               </button>
               <button
-                className="btn-action btn-browse"
+                className="btn-action "
                 onClick={handleBrowse}
                 type="button"
                 disabled={isLoading || isLoadingLocations}
+                style={{ backgroundColor: "#fd9d0a" }}
               >
                 <span className="btn-icon">🔍</span>
                 BROWSE

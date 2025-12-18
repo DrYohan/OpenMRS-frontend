@@ -7,6 +7,7 @@ import Center from "./component/pages/center";
 import Location from "./component/pages/location";
 import Department from "./component/pages/department";
 import FixedAssetMiddleCategory from "./component/pages/fixedAssetMiddleCategory";
+import ItemGRN from "./component/pages/ItemGRN";
 import SupplierDetails from "./component/pages/supplierDetails";
 import FixedAssetSubCategory from "./component/pages/fixedAssetSubCategory";
 
@@ -14,7 +15,9 @@ import FixedAssetSubCategory from "./component/pages/fixedAssetSubCategory";
 function App() {
   return (
     <Router>
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      <div
+        style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}
+      >
         <Navbar />
         <main style={{ flex: 1 }}>
           <Routes>
@@ -24,6 +27,7 @@ function App() {
             <Route path="/location" element={<Location />} />
             <Route path="/department" element={<Department />} />
             <Route path="/fixed-asset" element={<FixedAssetMiddleCategory />} />
+            <Route path="/item-grn" element={<ItemGRN />} />
             <Route path="/supplierDetails" element={<SupplierDetails />} />
             <Route path="/fixed-asset-sub" element={<FixedAssetSubCategory />} />
           </Routes>
@@ -35,5 +39,3 @@ function App() {
 }
 
 export default App;
-
-
