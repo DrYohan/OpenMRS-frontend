@@ -1,0 +1,38 @@
+/* Supplier Dettails Page Design */
+.category-hierarchy-a {
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+/* Checkbox size */
+.hierarchy-item-a input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+/* Address + Category 50 / 50 row */
+.two-column-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2rem;
+}
+
+/* Wider checkbox items */
+.hierarchy-item-a {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* Mobile stack */
+@media (max-width: 768px) {
+  .two-column-row {
+    grid-template-columns: 1fr;
+  }
+}
