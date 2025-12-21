@@ -88,6 +88,14 @@
 .nav-link:hover,
 .dropdown-toggle:hover {
   background: rgba(255, 255, 255, 0.1);
+  color: #e1e2eb;
+
+}
+
+.nav-link:focus,
+.dropdown-toggle:focus {
+    outline: none; 
+    color: white;
 }
 
 /* Dropdown Styles */

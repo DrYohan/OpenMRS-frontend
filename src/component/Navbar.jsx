@@ -107,6 +107,15 @@ const Navbar = () => {
                   Department
                 </Link>
               </li>
+              <li className="dropdown-item">
+                <Link
+                  to="/supplier"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Supplier Details
+                </Link>
+              </li>
             </ul>
           </li>
 
@@ -140,6 +149,15 @@ const Navbar = () => {
                   onClick={handleNavClick}
                 >
                   Item-GRN
+                </Link>
+              </li>
+              <li className="dropdown-item">
+                <Link
+                  to="/item-grn-approve"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Item-GRN Approve
                 </Link>
               </li>
             </ul>

@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { use, useEffect, useState } from "react";
 import "../../css/pages.css";
 import "../../css/supplierDetails.css";
 import axios from "axios";
 import Swal from "sweetalert2";
+import Select from "react-select";
+import { set } from "rsuite/esm/internals/utils/date";
 
 const SupplierDetails = () => {
   const [formData, setFormData] = useState({
@@ -16,25 +18,74 @@ const SupplierDetails = () => {
     fax: "",
     email: "",
     tinNo: "",
-    status: "true",
+    status: true,
   });
 
   const [stations, setStations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingStations, setIsLoadingStations] = useState(false);
+  const [updateState, setUpdateState] = useState(false);
+  const [supplierCodeOptions, setSupplierCodeOptions] = useState([]);
+
 
   /* ---------------- Dummy API ---------------- */
   useEffect(() => {
     setIsLoadingStations(true);
     setTimeout(() => {
       setStations([
-        { id: 1, name: "Colombo Station" },
-        { id: 2, name: "Kandy Station" },
-        { id: 3, name: "Jaffna Station" },
+        { id: 1, name: "National Hospital (Teaching), Kandy" },
+        { id: 2, name: "Sirimavo Bandaranayake Specialized Children Hospital (Teaching), Peradeniya" },
+        { id: 3, name: "General Hospital (Teaching), Peradeniya" },
       ]);
       setIsLoadingStations(false);
     }, 800);
   }, []);
+
+  const statusOptions = [
+    { value: true, label: "Active" },
+    { value: false, label: "Inactive" },
+  ];
+
+
+  const fetchAllSupplierCode = async () => {
+    try {
+      const response = await axios.get('http://localhost:3000/api/supplier/codes');
+      console.log("Supplier Codes:", response.data.data);
+      const options = response.data.data.map(code => ({
+        value: code,
+        label: code,
+      }));
+      setSupplierCodeOptions(options);
+    } catch (error) {
+      console.error("Error fetching supplier codes:", error);
+    }
+  }
+
+  const fetchSupplierByCode = async (code) => {
+    try {
+      setIsLoading(true);
+      const response = await axios.get(`http://localhost:3000/api/supplier/${code}`);
+      const data = response.data.data;
+      console.log("Fetched Supplier Data:", data);
+      setFormData({
+        stationId: parseInt(data.station_id) || "",
+        supplierCode: data.supplier_code,
+        supplierName: data.supplier_name,
+        contactPerson: data.contact_person,
+        address: data.address,
+        categories: data.categories || [],
+        telephone: parseInt(data.telephone) || "",
+        fax: data.fax,
+        email: data.email,
+        tinNo: parseInt(data.tin_no) || "",
+        status: data.status === 1, // convert 1/0 to string for your select
+      });
+      setIsLoading(false);
+    } catch (error) {
+      console.error("Error fetching supplier details:", error);
+      setIsLoading(false);
+    }
+  };
 
   const clearForm = () => {
     setFormData({
@@ -48,7 +99,7 @@ const SupplierDetails = () => {
       fax: "",
       email: "",
       tinNo: "",
-      status: "true",
+      status: true,
     })
   }
 
@@ -108,32 +159,53 @@ const SupplierDetails = () => {
     }
     console.log("Supplier Data:", formData);
     try {
-      await axios.post('http://localhost:3000/api/supplier', formData);
-      setIsLoading(false);
+      setIsLoading(true);
+      if(updateState){
+        await axios.put(`http://localhost:3000/api/supplier/${formData.supplierCode}`, formData);
+      }else {
+        await axios.post('http://localhost:3000/api/supplier', formData);
+      }
+      
       Swal.fire({
         icon: 'success',
         title: 'Success',
-        text: 'Supplier details saved successfully!',
+        text: `Supplier details ${updateState ? "update" :"saved"} successfully!`,
       });
+      setIsLoading(false);
       clearForm();
     } catch (error) {
       console.error("Error saving supplier details:", error);  
       setIsLoading(false);
-      Swal.fire({
-        icon: 'error',
-        title: 'Error',
-        text: 'Failed to save supplier details. Please try again.',
-      });    
+      if ( error.response && error.response.status === 400 && error.response.data?.message === "Email already exists"){
+        Swal.fire({
+          icon: 'warning',
+          title: 'Duplicate Email',
+          text: 'This email address already exists. Please use a different email.',
+        });
+      } else {
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'An error occurred while saving supplier details. Please try again.',
+        });
+      }  
     }
   };
 
   const handleLookup = () => {
     console.log("Lookup clicked");
+    setUpdateState(true);
+    clearForm();
+    fetchAllSupplierCode();
   };
+
 
   const handleCancel = () => {
     clearForm();
+    setUpdateState(false);
+    
   };
+  
 
   return (
     <div className="page">
@@ -150,23 +222,23 @@ const SupplierDetails = () => {
                 <label className="form-label">
                   Station Name <span className="required">*</span>
                 </label>
-                <div className="select-wrapper">
-                  <select
-                    className="form-select"
-                    name="stationId"
-                    value={formData.stationId}
-                    onChange={handleChange}
-                    disabled={isLoadingStations}
-                  >
-                    <option value="">Select Station</option>
-                    {stations.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="select-arrow"></div>
-                </div>
+                <Select
+                  name="stationId"
+                  value={
+                    stations
+                      .map(s => ({ value: s.id, label: s.name }))
+                      .find(option => option.value === formData.stationId) || null
+                  }
+                  onChange={(selected) =>
+                    setFormData(prev => ({
+                      ...prev,
+                      stationId: selected ? selected.value : "",
+                    }))
+                  }
+                  options={stations.map(s => ({ value: s.id, label: s.name }))}
+                  isDisabled={isLoadingStations}
+                  placeholder="Select Station"
+                />
               </div>
 
               {/* Supplier Code */}
@@ -174,12 +246,31 @@ const SupplierDetails = () => {
                 <label className="form-label">
                   Supplier Code <span className="required">*</span>
                 </label>
-                <input
-                  className="form-input"
-                  name="supplierCode"
-                  value={formData.supplierCode}
-                  onChange={handleChange}
+                {updateState ? (
+                <Select
+                  options={supplierCodeOptions}
+                  value={
+                    supplierCodeOptions.find(opt => opt.value === formData.supplierCode) || null
+                  } // use null if not found
+                  onChange={selected => {
+                    setFormData(prev => ({
+                      ...prev,
+                      supplierCode: selected ? selected.value : "", 
+                    }))
+                    fetchSupplierByCode(selected.value);
+                  }
+                  }
                 />
+
+                  ) : (
+                    <input
+                      className="form-control"
+                      id="supplierCode"
+                      name="supplierCode"
+                      value={formData.supplierCode || ""}
+                      onChange={handleChange}
+                    />
+                  )}
               </div>
 
               {/* Supplier Name */}
@@ -188,7 +279,7 @@ const SupplierDetails = () => {
                   Supplier Name <span className="required">*</span>
                 </label>
                 <input
-                  className="form-input"
+                  className="form-control"
                   name="supplierName"
                   value={formData.supplierName}
                   onChange={handleChange}
@@ -199,7 +290,7 @@ const SupplierDetails = () => {
               <div className="form-group">
                 <label className="form-label">Contact Person</label>
                 <input
-                  className="form-input"
+                  className="form-control"
                   name="contactPerson"
                   value={formData.contactPerson}
                   onChange={handleChange}
@@ -213,7 +304,7 @@ const SupplierDetails = () => {
                   <div className="form-group">
                     <label className="form-label">Address</label>
                     <textarea
-                      className="form-textarea"
+                      className="form-control"
                       name="address"
                       value={formData.address}
                       onChange={handleChange}
@@ -245,7 +336,7 @@ const SupplierDetails = () => {
               <div className="form-group">
                 <label className="form-label">Telephone</label>
                 <input
-                  className="form-input"
+                  className="form-control"
                   name="telephone"
                   value={formData.telephone}
                   onChange={handleChange}
@@ -256,7 +347,7 @@ const SupplierDetails = () => {
               <div className="form-group">
                 <label className="form-label">Fax</label>
                 <input
-                  className="form-input"
+                  className="form-control"
                   name="fax"
                   value={formData.fax}
                   onChange={handleChange}
@@ -268,7 +359,7 @@ const SupplierDetails = () => {
                 <label className="form-label">Email</label>
                 <input
                   type="email"
-                  className="form-input"
+                  className="form-control"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
@@ -280,7 +371,7 @@ const SupplierDetails = () => {
                 <label className="form-label">TIN No</label>
                 <input
                   type="number"
-                  className="form-input"
+                  className="form-control"
                   name="tinNo"
                   value={formData.tinNo}
                   onChange={handleChange}
@@ -290,19 +381,25 @@ const SupplierDetails = () => {
               {/* Status */}
               <div className="form-group">
                 <label className="form-label">Status</label>
-                <div className="select-wrapper">
-                  <select
-                    className="form-select"
-                    name="status"
-                    value={formData.status}
-                    onChange={handleChange}
-                  >
-                    <option value="true">Active</option>
-                    <option value="false">Inactive</option>
-                  </select>
-                  <div className="select-arrow"></div>
-                </div>
+
+                <Select
+                  className="react-select-container"
+                  classNamePrefix="react-select"
+                  options={statusOptions}
+                  isSearchable={false}
+                  placeholder="Select status"
+                  value={statusOptions.find(
+                    opt => opt.value === formData.status
+                  )}
+                  onChange={(selected) =>
+                    setFormData(prev => ({
+                      ...prev,
+                      status: selected.value,
+                    }))
+                  }
+                />
               </div>
+
             </div>
           </div>
 
@@ -310,32 +407,28 @@ const SupplierDetails = () => {
           <div className="form-actions-section">
             <div className="action-buttons">
               <button
-                className="btn-action btn-save"
+                className="button button-submit"
                 type="button"
-                style={{ backgroundColor: "#4bc517ff" }}
                 onClick={handleSave}
                 disabled={ isLoading }
               >
-                <span className="btn-icon">💾</span>
-                SAVE
+                {updateState ? "Update" : "Submit"}
               </button>
 
-              <button className="btn-action btn-lookup" 
+              <button className="button button-lookup" 
                 type="button"
                 onClick={handleLookup}
                 disabled={isLoading}
               >
-                <span className="btn-icon">🔍</span>
-                LOOKUP
+                Look up
               </button>
 
-              <button className="btn-action btn-cancel" 
+              <button className="button button-cancel" 
                 type="button"
                 onClick={handleCancel}
                 disabled={isLoading}
               >
-                <span className="btn-icon">✕</span>
-                CANCEL
+                Cancel
               </button>
             </div>
           </div>
@@ -345,3 +438,4 @@ const SupplierDetails = () => {
   );
 };
 export default SupplierDetails;
+
