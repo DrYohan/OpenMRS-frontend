@@ -529,8 +529,8 @@ const handleSelectAll = (type) => {
                   details.map((item, index) => (
                     <tr key={index}>
                       <td>{index + 1}</td>
-                      <td>{item.center || '-'}</td>
-                      <td>{item.location || '-'}</td>
+                      <td>{item.center_name || '-'}</td>
+                      <td>{item.location_name || '-'}</td>
                       <td>{item.department || '-'}</td>
                       <td>{item.employee || '-'}</td>
                       <td>{item.serial_no || '-'}</td>
