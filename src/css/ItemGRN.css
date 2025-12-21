@@ -509,3 +509,163 @@
     font-size: 0.875rem;
   }
 }
+
+/* File Upload Styles */
+.file-uploads-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.file-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+
+.file-choose-btn {
+  padding: 8px 16px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+  white-space: nowrap;
+  min-width: 120px;
+}
+
+.file-choose-btn:hover {
+  background-color: #5a6268;
+}
+
+.file-name {
+  font-size: 14px;
+  color: #666;
+  padding: 8px 12px;
+  background-color: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  flex: 1;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 150px;
+}
+
+.remove-file-btn {
+  background-color: #e75933;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background-color 0.3s;
+}
+
+.remove-file-btn:hover {
+  background-color: #d6451e;
+}
+
+.add-file-btn-container {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  margin-top: 1rem;
+}
+
+/* Asset Allocation Table */
+.asset-table-container {
+  overflow-x: auto;
+  margin-top: 1rem;
+}
+
+.asset-allocation-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.asset-allocation-table th {
+  background-color: #f8f9fa;
+  padding: 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #495057;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.asset-allocation-table td {
+  padding: 10px;
+  border-bottom: 1px solid #dee2e6;
+  vertical-align: middle;
+}
+
+.asset-allocation-table tr:hover {
+  background-color: #f8f9fa;
+}
+
+.table-select,
+.table-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.table-select:focus,
+.table-input:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.table-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.btn-add-small,
+.btn-remove {
+  padding: 6px 12px !important;
+  min-width: auto !important;
+  font-size: 12px !important;
+}
+
+.btn-remove {
+  background-color: #e75933 !important;
+}
+
+.btn-remove:hover {
+  background-color: #d6451e !important;
+}
+
+/* Responsive Table */
+@media (max-width: 768px) {
+  .asset-table-container {
+    font-size: 12px;
+  }
+
+  .asset-allocation-table th,
+  .asset-allocation-table td {
+    padding: 6px;
+  }
+
+  .table-select,
+  .table-input {
+    padding: 4px 6px;
+    font-size: 12px;
+  }
+}
