@@ -1763,11 +1763,7 @@ const ItemGRN = () => {
                         color: "#666",
                         marginTop: "5px",
                       }}
-                    >
-                      Selected:{" "}
-                      {findMiddleCategoryById(formData.middleCategory)?.name ||
-                        `ID: ${formData.middleCategory} (Not found in dropdown)`}
-                    </div>
+                    ></div>
                   )}
                 </div>
 
@@ -1809,14 +1805,7 @@ const ItemGRN = () => {
                         color: "#666",
                         marginTop: "5px",
                       }}
-                    >
-                      Selected:{" "}
-                      {findSubCategoryById(
-                        formData.subCategory,
-                        formData.middleCategory
-                      )?.name ||
-                        `ID: ${formData.subCategory} (Not found in dropdown)`}
-                    </div>
+                    ></div>
                   )}
                 </div>
 
