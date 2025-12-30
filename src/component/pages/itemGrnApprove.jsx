@@ -54,37 +54,21 @@ const ItemGrnApprove = () => {
   });
   const [details, setDetails] = useState([])
   const [grnNo, setGrnNo] = useState([]);
+  const [images, setImages] = useState([]);
 
   useEffect(() => {
-    console.log("Component mounted. Fetching GRN No...");
-
     const fetchGrnNo = async () => {
       try {
         const response = await axios.get(
           "http://localhost:3000/api/item-grn-approve/grn-no"
         );
-
-        console.log("Fetched GRN No:", response.data.data);
-
-        // example response: { grnNo: "GRN-00023" }
         setGrnNo(response.data.data);
       } catch (error) {
         console.error("Error fetching GRN No:", error);
       }
     };
-
     fetchGrnNo();
   }, []);
-
-
-  const images = [
-    "https://picsum.photos/600/400?random=1",
-    "https://picsum.photos/600/400?random=2",
-    "https://picsum.photos/600/400?random=3",
-    "https://picsum.photos/600/400?random=4",
-    "https://picsum.photos/600/400?random=5",
-    "https://picsum.photos/600/400?random=6"
-  ];
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -92,118 +76,68 @@ const ItemGrnApprove = () => {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }));
-    if (name === "grnNo" && value) {
-        // fetch records
-        fetchRecordByGrnNo(value);
-    }
   };
 
-  const fetchRecordByGrnNo = async (grnNo) => {
-    console.log("Fetching record for GRN No:", grnNo);
-    try {
-      const response = await axios.get(
-        `http://localhost:3000/api/item-grn-approve/${grnNo}`
-      );
-
-      console.log("Fetched Record:", response.data.data);
-
-      const record = response.data.data[0]; // get the first object from array
-      if (!record) return;
-
-      setFormData((prev) => ({
-        ...prev,
-        middleCategory: record.middle_category || "",
-        subCategory: record.sub_category || "",
-        itemName: record.item_name || "",
-        p0No: record.po_no || "",
-        brand: record.brand || "",
-        model: record.model || "",
-        supplier: record.supplier || "",
-        qty: record.qty || "",
-        date: record.date ? record.date.split("T")[0] : "",
-        invoiceNo: record.invoice_no || "",
-        unitPrice: record.unit_price || "",
-        invTotal: record.inv_total || "",
-        manufacturer: record.manufacturer || "",
-        type: record.type || "",
-        source: record.source || "",
-        receiveType: record.receive_type || "",
-        remarks: record.remarks || "",
-        grnDate: record.grn_date ? record.grn_date.split("T")[0] : "",
-        grnNo: record.grn_no || "",
-        warrantyExp: record.warranty_expiry ? record.warranty_expiry.split("T")[0] : "",
-        serviceStart: record.service_start ? record.service_start.split("T")[0] : "",
-        serviceEnd: record.service_end ? record.service_end.split("T")[0] : "",
-        salvageValue: record.salvage_value || "",
-      }));
-    } catch (error) {
-      console.error("Error fetching record by GRN No:", error);
-    }   
-  };
-  // Function called when dropdown changes
   const handleGrnChange = async (grnNo) => {
-    // update formData with selected GRN number
     setFormData((prev) => ({
       ...prev,
       grnNo: grnNo,
     }));
-
     if (!grnNo) return;
-
     try {
       const response = await axios.get(
         `http://localhost:3000/api/item-grn-approve/${grnNo}`
       );
-
-      const record = response.data.data[0]; // backend returns array
-      console.log("Fetched Record for GRN Change:", record);
+      const record = response.data.data; 
+      setImages([
+        record.Item1Pic,
+        record.Item2Pic,
+        record.Item3Pic,
+        record.Item4Pic,
+      ].filter(Boolean)); 
       if (!record) return;
-      console.log("Fetched Record for GRN Change:", record);
-      console.log("Record Date:", record.details);
-      setDetails(record.details || []);
+      const qty =  record.itemDetails.length
+      setDetails(record.itemDetails || []);
       setFormData((prev) => ({
         ...prev,
-        middleCategory: record.middle_category || "",
-        subCategory: record.sub_category || "",
-        itemName: record.item_name || "",
-        p0No: record.po_no || "",
-        brand: record.brand || "",
-        model: record.model || "",
-        supplier: record.supplier || "",
-        qty: record.qty || "",
-        date: record.date ? record.date.split("T")[0] : "",
-        invoiceNo: record.invoice_no || "",
-        unitPrice: record.unit_price || "",
-        invTotal: record.inv_total || "",
-        manufacturer: record.manufacturer || "",
-        type: record.type || "",
-        source: record.source || "",
-        receiveType: record.receive_type || "",
-        remarks: record.remarks || "",
-        grnDate: record.grn_date ? record.grn_date.split("T")[0] : "",
-        warrantyExp: record.warranty_expiry ? record.warranty_expiry.split("T")[0] : "",
-        serviceStart: record.service_start ? record.service_start.split("T")[0] : "",
-        serviceEnd: record.service_end ? record.service_end.split("T")[0] : "",
-        salvageValue: record.salvage_value || "",
-        createdAt: record.created_at || "",
-        updatedAt: record.updated_at || "",
+        middleCategory: record.MiddleCategory || "",
+        subCategory: record.SubCategory || "",
+        itemName: record.ItemName || "",
+        p0No: record.PONo || "",
+        brand: record.Brand || "",
+        model: record.Model || "",
+        supplier: record.Supplier || "",
+        qty: qty || "", 
+        date: record.CreatedAt ? record.CreatedAt.split("T")[0] : "",
+        invoiceNo: record.InvoiceNo || "",
+        unitPrice: record.UnitPrice || "",
+        invTotal: record.InvoiceTotal || "",
+        manufacturer: record.Manufacture || "",
+        type: record.Type || "",
+        source: record.Source || "",
+        receiveType: record.PurchaseType || "",
+        remarks: record.Remarks || "",
+        grnDate: record.GRNdate ? record.GRNdate.split("T")[0] : "",
+        warrantyExp: record.WarrantyExpireDate ? record.WarrantyExpireDate.split("T")[0] : "",
+        serviceStart: record.ServiceAgreementStartDate ? record.ServiceAgreementStartDate.split("T")[0] : "",
+        serviceEnd: record.ServiceAgreementEndDate ? record.ServiceAgreementEndDate.split("T")[0] : "",
+        salvageValue: record.SalvageValue || "",
+        createdAt: record.CreatedAt || "",
+        updatedAt: record.UpdatedAt || "",
       }));
     } catch (error) {
       console.error("Error fetching record by GRN No:", error);
     }
   };
 
-
-
-  // Handle checkbox change
-  const handleStatusChange = (itemId, type) => {
+  const handleStatusChange = (ItemSerial, type) => {
     setDetails((prevDetails) =>
       prevDetails.map((item) => {
-        if (item.id === itemId) {
+        if (item.ItemSerial === ItemSerial) {
           if (type === 'approve') {
-            return { ...item, status: item.status === 1 ? 0 : 1 }; // toggle approve
+            return { ...item, Status: item.Status === 1 ? 0 : 1 };
           } else if (type === 'reject') {
-            return { ...item, status: item.status === 0 ? 1 : 0 }; // toggle reject
+            return { ...item, Status: item.Status === 0 ? 1 : 0 }; 
           }
         }
         return item;
@@ -211,39 +145,26 @@ const ItemGrnApprove = () => {
     );
   };
 
-
-const handleSelectAll = (type) => {
-  setDetails(prev =>
-    prev.map(item => ({
-      ...item,
-      status: type === 'approve' ? 1 : 0
-    }))
-  );
-};
-
-
-   // 🔹 ADD THESE HERE
-  const allApproved =
-    details.length > 0 && details.every(item => item.status === 1);
-
-  const allRejected =
-    details.length > 0 && details.every(item => item.status === 0);
-
-  const handleFileChange = (e, fieldName) => {
-    if (e.target.files.length > 0) {
-      setFormData((prev) => ({
-        ...prev,
-        [fieldName]: e.target.files[0].name,
-      }));
-    }
+  const handleSelectAll = (type) => {
+    setDetails(prev =>
+      prev.map(item => ({
+        ...item,
+        Status: type === 'approve' ? 1 : 0
+      }))
+    );
   };
 
+  const allApproved =
+    details.length > 0 && details.every(item => item.Status === 1);
+
+  const allRejected =
+    details.length > 0 && details.every(item => item.Status === 0);
 
   const handleApprove = async (details) => {
     try {
       console.log("Approving items with details:", details);
-      const approvedItems = details.filter(item => item.status === 1);
-      const rehectedItems = details.filter(item => item.status === 0);
+      const approvedItems = details.filter(item => item.Status === 1);
+      const rehectedItems = details.filter(item => item.Status === 0);
       if (approvedItems.length === 0 & rehectedItems.length === 0) {
         Swal.fire({
           icon: 'warning',
@@ -253,8 +174,17 @@ const handleSelectAll = (type) => {
         return;
       }
 
+      const payloadDetails = details.map(item => ({
+        ItemSerial: item.ItemSerial,
+        Status: Number(item.Status)
+      }));
+
+
+      console.log("payloadDetails", payloadDetails)
+
+
       await axios.post("http://localhost:3000/api/item-grn-approve/approve", 
-        { itemGrn: formData, itemGrnDetails: details }
+        { itemGrn: formData, itemGrnDetails: payloadDetails }
       );
 
       Swal.fire({
@@ -263,15 +193,16 @@ const handleSelectAll = (type) => {
         showConfirmButton: false,
         timer: 1500,
       });
+
+      handleReset();
       
     } catch (error) {
       console.error("Error approving items:", error);
     }
   }
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    console.log("Form submitted:", formData);
+  const isImageFile = (filePath) => {
+    return /\.(jpg|jpeg|png|gif|webp)$/i.test(filePath);
   };
 
   const handleReset = () => {
@@ -311,6 +242,8 @@ const handleSelectAll = (type) => {
       barcodeNo: "",
       replicate: false,
     });
+    setDetails([]);
+    setImages([]);
   };
 
   return (
@@ -340,8 +273,6 @@ const handleSelectAll = (type) => {
                           isSearchable
                         />
                     </div>
-
-
 
                   <div className="form-group">
                       <label className="form-label">Middle Category</label>
@@ -383,21 +314,39 @@ const handleSelectAll = (type) => {
                       <input className="form-control" name="model" value={formData.model} onChange={handleChange} />
                   </div>
 
-                  {/* Image Display */}
+                  {/* Image / File Display */}
                   <div className="form-group image-gallery">
-                      <div className="image-wrapper">
-                          {images && images.length > 0 && (
-                          images.map((img, index) => (
-                              <img
+                    <div className="image-wrapper">
+                      {images && images.length > 0 &&
+                        images.map((file, index) => {
+                          const fileUrl = `http://localhost:3000${file}`;
+                          const isImage = isImageFile(file);
+                          return (
+                            <a
                               key={index}
-                              src={img} // or img.path depending on your data
-                              alt={`Item Image ${index + 1}`}
-                              className="gallery-image"
-                              />
-                          ))
-                          )}
-                      </div>
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="media-box"
+                            >
+                              {isImage ? (
+                                <img
+                                  src={fileUrl}
+                                  alt={`Item ${index + 1}`}
+                                  className="media-image"
+                                />
+                              ) : (
+                                <div className="media-file">
+                                  <span className="media-icon">📄</span>
+                                  <span className="media-text">View File {index + 1}</span>
+                                </div>
+                              )}
+                            </a>
+                          );
+                        })}
+                    </div>
                   </div>
+
 
                   <div className="form-group">
                       <label className="form-label">Manufacturer</label>
@@ -529,26 +478,26 @@ const handleSelectAll = (type) => {
                   details.map((item, index) => (
                     <tr key={index}>
                       <td>{index + 1}</td>
-                      <td>{item.center_name || '-'}</td>
-                      <td>{item.location_name || '-'}</td>
-                      <td>{item.department || '-'}</td>
-                      <td>{item.employee || '-'}</td>
-                      <td>{item.serial_no || '-'}</td>
-                      <td>{item.book_no_local_id || '-'}</td>
+                      <td>{item.CenterName || '-'}</td>
+                      <td>{item.LocationName || '-'}</td>
+                      <td>{item.DepartmentName || '-'}</td>
+                      <td>{item.EmployeeName || '-'}</td>
+                      <td>{item.SerialNo || '-'}</td>
+                      <td>{item.BookNo || '-'}</td>
                       <td className="text-center">
                         <input
                           type="checkbox"
                           className="form-check-input"
-                          checked={item.status === 1}
-                          onChange={() => handleStatusChange(item.id, 'approve')}
+                          checked={item.Status === 1}
+                          onChange={() => handleStatusChange(item.ItemSerial, 'approve')}
                         />
                       </td>
                       <td className="text-center">
                         <input
                           type="checkbox"
                           className="form-check-input"
-                          checked={item.status === 0}
-                          onChange={() => handleStatusChange(item.id, 'reject')}
+                          checked={item.Status === 0}
+                          onChange={() => handleStatusChange(item.ItemSerial, 'reject')}
                         />
                       </td>
                     </tr>
@@ -564,7 +513,10 @@ const handleSelectAll = (type) => {
               >
                 Approve
               </button>
-              <button className="button button-cancel" type="button">
+              <button className="button button-cancel" 
+                type="button"
+                onClick={handleReset}
+              >
                 Cancel
               </button>
             </div>

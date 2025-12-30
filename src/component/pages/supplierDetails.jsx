@@ -4,7 +4,7 @@ import "../../css/supplierDetails.css";
 import axios from "axios";
 import Swal from "sweetalert2";
 import Select from "react-select";
-import { set } from "rsuite/esm/internals/utils/date";
+
 
 const SupplierDetails = () => {
   const [formData, setFormData] = useState({
@@ -27,8 +27,6 @@ const SupplierDetails = () => {
   const [updateState, setUpdateState] = useState(false);
   const [supplierCodeOptions, setSupplierCodeOptions] = useState([]);
 
-
-  /* ---------------- Dummy API ---------------- */
   useEffect(() => {
     setIsLoadingStations(true);
     setTimeout(() => {
@@ -46,11 +44,9 @@ const SupplierDetails = () => {
     { value: false, label: "Inactive" },
   ];
 
-
   const fetchAllSupplierCode = async () => {
     try {
       const response = await axios.get('http://localhost:3000/api/supplier/codes');
-      console.log("Supplier Codes:", response.data.data);
       const options = response.data.data.map(code => ({
         value: code,
         label: code,
@@ -66,7 +62,6 @@ const SupplierDetails = () => {
       setIsLoading(true);
       const response = await axios.get(`http://localhost:3000/api/supplier/${code}`);
       const data = response.data.data;
-      console.log("Fetched Supplier Data:", data);
       setFormData({
         stationId: parseInt(data.station_id) || "",
         supplierCode: data.supplier_code,
@@ -78,7 +73,7 @@ const SupplierDetails = () => {
         fax: data.fax,
         email: data.email,
         tinNo: parseInt(data.tin_no) || "",
-        status: data.status === 1, // convert 1/0 to string for your select
+        status: data.status === 1, 
       });
       setIsLoading(false);
     } catch (error) {
@@ -117,8 +112,6 @@ const SupplierDetails = () => {
     }));
   };
 
-
-  /* for email and telephone */
   const regexValidate = (email, telephone) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
     const phoneRegex = /^\d{10}$/;
@@ -193,17 +186,16 @@ const SupplierDetails = () => {
   };
 
   const handleLookup = () => {
-    console.log("Lookup clicked");
     setUpdateState(true);
     clearForm();
     fetchAllSupplierCode();
+    setIsLoading(true);
   };
-
 
   const handleCancel = () => {
     clearForm();
     setUpdateState(false);
-    
+    setIsLoading(false);
   };
   
 
@@ -236,7 +228,7 @@ const SupplierDetails = () => {
                     }))
                   }
                   options={stations.map(s => ({ value: s.id, label: s.name }))}
-                  isDisabled={isLoadingStations}
+                  isDisabled={isLoading}
                   placeholder="Select Station"
                 />
               </div>
@@ -251,7 +243,7 @@ const SupplierDetails = () => {
                   options={supplierCodeOptions}
                   value={
                     supplierCodeOptions.find(opt => opt.value === formData.supplierCode) || null
-                  } // use null if not found
+                  } 
                   onChange={selected => {
                     setFormData(prev => ({
                       ...prev,
@@ -283,6 +275,7 @@ const SupplierDetails = () => {
                   name="supplierName"
                   value={formData.supplierName}
                   onChange={handleChange}
+                  disabled={isLoading}
                 />
               </div>
 
@@ -294,6 +287,7 @@ const SupplierDetails = () => {
                   name="contactPerson"
                   value={formData.contactPerson}
                   onChange={handleChange}
+                  disabled={isLoading}
                 />
               </div>
 
@@ -308,6 +302,7 @@ const SupplierDetails = () => {
                       name="address"
                       value={formData.address}
                       onChange={handleChange}
+                      disabled={isLoading}
                     />
                   </div>
 
@@ -322,6 +317,7 @@ const SupplierDetails = () => {
                               type="checkbox"
                               checked={formData.categories.includes(c)}
                               onChange={() => toggleCategory(c)}
+                              disabled={isLoading}
                             />
                             {c}
                           </label>
@@ -340,6 +336,7 @@ const SupplierDetails = () => {
                   name="telephone"
                   value={formData.telephone}
                   onChange={handleChange}
+                  disabled={isLoading}
                 />
               </div>
 
@@ -351,6 +348,7 @@ const SupplierDetails = () => {
                   name="fax"
                   value={formData.fax}
                   onChange={handleChange}
+                  disabled={isLoading}
                 />
               </div>
 
@@ -363,6 +361,7 @@ const SupplierDetails = () => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
+                  disabled={isLoading}
                 />
               </div>
 
@@ -375,6 +374,7 @@ const SupplierDetails = () => {
                   name="tinNo"
                   value={formData.tinNo}
                   onChange={handleChange}
+                  disabled={isLoading}
                 />
               </div>
 
@@ -397,6 +397,7 @@ const SupplierDetails = () => {
                       status: selected.value,
                     }))
                   }
+                  isDisabled={isLoading}
                 />
               </div>
 
@@ -426,7 +427,6 @@ const SupplierDetails = () => {
               <button className="button button-cancel" 
                 type="button"
                 onClick={handleCancel}
-                disabled={isLoading}
               >
                 Cancel
               </button>
