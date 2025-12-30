@@ -1,0 +1,6 @@
+# Server configuration
+REACT_APP_PORT=3005
+REACT_APP_API_BASE_URL=http://localhost:5055
+REACT_APP_API_CUSTOMER_URL=http://localhost:5001
+REACT_APP_API_INSTITUTE_URL=http://localhost:5002
+

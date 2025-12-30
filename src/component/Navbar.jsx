@@ -144,6 +144,15 @@ const Navbar = () => {
               </li>
               <li className="dropdown-item">
                 <Link
+                  to="/fixed-asset-sub"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Sub Category
+                </Link>
+              </li>
+              <li className="dropdown-item">
+                <Link
                   to="/item-grn"
                   className="dropdown-link"
                   onClick={handleNavClick}

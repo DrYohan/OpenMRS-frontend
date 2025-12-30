@@ -1,0 +1,66 @@
+/* Custom Popup Styling */
+.custom-popup .leaflet-popup-content-wrapper {
+    background: #ffffff;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 15px;
+}
+
+.custom-popup .leaflet-popup-tip {
+    background: #ffffff;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.popup-content h3 {
+    margin: 0 0 10px;
+    font-size: 18px;
+    color: #333333;
+}
+
+.popup-content p {
+    margin: 5px 0;
+    font-size: 14px;
+    color: #555555;
+}
+
+/* Status Colors */
+.status {
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-weight: bold;
+    text-transform: uppercase;
+    font-size: 12px;
+}
+
+.raining {
+    background-color: #ff4d4d;
+    color: white;
+}
+
+.no-rain {
+    background-color: #4caf50;
+    color: white;
+}
+
+.rained {
+    background-color: #ff9800;
+    color: white;
+}
+
+.no-data {
+    background-color: #9e9e9e;
+    color: white;
+}
+
+.dt-buttons,
+.dt-paging {
+    float: right;
+}
+
+.dt-autosize {
+    clear: both;
+}
+
+#rainfallTable {
+    margin-top: 10px;
+}
