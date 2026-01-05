@@ -11,6 +11,7 @@ import ItemGRN from "./component/pages/ItemGRN";
 import SupplierDetails from "./component/pages/supplierDetails";
 import FixedAssetSubCategory from "./component/pages/fixedAssetSubCategory";
 import ItemGrnApprove from "./component/pages/itemGrnApprove";
+import Report from "./component/pages/Report";
 
 function App() {
   return (
@@ -31,6 +32,7 @@ function App() {
             <Route path="/supplier" element={<SupplierDetails />} />
             <Route path="/fixed-asset-sub" element={<FixedAssetSubCategory />} />
              <Route path="/item-grn-approve" element={<ItemGrnApprove />} />
+             <Route path="/report" element={<Report />} />
           </Routes>
         </main>
         <Footer />

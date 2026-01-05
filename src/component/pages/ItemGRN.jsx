@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import "../../css/ItemGRN.css";
+import Swal from "sweetalert2";
 
 const ItemGRN = () => {
   // Main form data
@@ -40,7 +41,13 @@ const ItemGRN = () => {
 
   // Dynamic file uploads array
   const [files, setFiles] = useState([
-    { id: 1, name: "", file: null, fileName: "No file chosen" },
+    {
+      id: 1,
+      name: "",
+      file: null,
+      fileName: "No file chosen",
+      previewUrl: null,
+    },
   ]);
 
   // Asset allocation rows
@@ -72,6 +79,7 @@ const ItemGRN = () => {
     locations: [],
     departments: [],
     employees: [],
+    suppliers: [],
   });
 
   // Browse modal state
@@ -89,6 +97,8 @@ const ItemGRN = () => {
   const [isEditingMode, setIsEditingMode] = useState(false);
   const [selectedGrnData, setSelectedGrnData] = useState(null);
   const [selectedItemSerials, setSelectedItemSerials] = useState([]);
+  const [allRelatedItems, setAllRelatedItems] = useState([]);
+  const [isViewingFixedAsset, setIsViewingFixedAsset] = useState(false);
 
   const itemsPerPage = 20;
 
@@ -111,6 +121,7 @@ const ItemGRN = () => {
         fetchCenters(),
         fetchLocations(),
         fetchDepartments(),
+        fetchSuppliers(),
       ]);
     };
 
@@ -121,13 +132,18 @@ const ItemGRN = () => {
   useEffect(() => {
     return () => {
       // Clean up object URLs to prevent memory leaks
+      files.forEach((file) => {
+        if (file.previewUrl && file.previewUrl.startsWith("blob:")) {
+          URL.revokeObjectURL(file.previewUrl);
+        }
+      });
       Object.values(imagePreviews).forEach((url) => {
         if (url && url.startsWith("blob:")) {
           URL.revokeObjectURL(url);
         }
       });
     };
-  }, [imagePreviews]);
+  }, [files, imagePreviews]);
 
   // Add this useEffect to ensure departments are loaded when editing
   useEffect(() => {
@@ -153,34 +169,21 @@ const ItemGRN = () => {
     }
   }, [isEditingMode, assetRows]);
 
-  // Load item images
-  const loadItemImages = async (itemSerial) => {
+  // Function to fetch all fixed assets by GRN number
+  const fetchAssetsByGrnNo = async (grnNo) => {
     try {
       const response = await fetch(
-        `http://localhost:3000/api/item-grn/${itemSerial}/check-images`
+        `http://localhost:3000/api/item-grn-approve/assets/by-grn/${grnNo}`
       );
       const result = await response.json();
 
       if (result.success) {
-        setSelectedItemImages({
-          hasImages: result.data.count > 0,
-          imageCount: result.data.count,
-          imagePaths: result.data.has_images,
-        });
-      } else {
-        setSelectedItemImages({
-          hasImages: false,
-          imageCount: 0,
-          imagePaths: {},
-        });
+        return result.data;
       }
+      return [];
     } catch (error) {
-      console.error("Error loading item images:", error);
-      setSelectedItemImages({
-        hasImages: false,
-        imageCount: 0,
-        imagePaths: {},
-      });
+      console.error("Error fetching assets by GRN:", error);
+      return [];
     }
   };
 
@@ -196,9 +199,85 @@ const ItemGRN = () => {
     setLoadingImage(false);
   };
 
-  // Get image URL
+  // Get image URL (updated to handle both item-grn and fixed-asset)
   const getImageUrl = (itemSerial, imageNumber) => {
+    if (isViewingFixedAsset && selectedItem) {
+      // For fixed assets, get from the selected item data
+      const imageField = `Item${imageNumber}Pic`;
+      const imagePath = selectedItem[imageField];
+      if (imagePath) {
+        // Clean the path
+        let cleanedPath = imagePath
+          .replace(/['"]/g, "")
+          .trim()
+          .replace(/\\/g, "/");
+        cleanedPath = cleanedPath.replace(/^\/+/, "");
+
+        return `http://localhost:3000/${cleanedPath}`;
+      }
+    }
+
+    // For item-grn items, check if we have image paths in selectedItemImages
+    if (selectedItemImages.imagePaths) {
+      const imageField = `Item${imageNumber}Pic`;
+      const imagePath = selectedItemImages.imagePaths[imageField];
+      if (imagePath) {
+        // Clean the path
+        let cleanedPath = imagePath;
+        if (typeof cleanedPath === "string") {
+          cleanedPath = cleanedPath
+            .replace(/['"]/g, "")
+            .trim()
+            .replace(/\\/g, "/");
+          cleanedPath = cleanedPath.replace(/^\/+/, "");
+
+          if (cleanedPath.startsWith("http")) {
+            return cleanedPath;
+          } else {
+            return `http://localhost:3000/${cleanedPath}`;
+          }
+        }
+      }
+    }
+
+    // Fallback: try the API endpoint
     return `http://localhost:3000/api/item-grn/${itemSerial}/images/${imageNumber}`;
+  };
+
+  const handleImageError = (e, imageNumber) => {
+    console.error(`Error loading image ${imageNumber}:`, e);
+    e.target.src =
+      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Crect width='150' height='150' fill='%23f0f0f0'/%3E%3Ctext x='50%25' y='50%25' text-anchor='middle' dy='.3em' fill='%23999' font-family='Arial, sans-serif' font-size='14'%3EImage %23${imageNumber}%3C/text%3E%3C/svg%3E";
+
+    // Try to reload the image
+    setTimeout(() => {
+      if (
+        selectedItemSerials[0] &&
+        selectedItemImages.imagePaths[`Item${imageNumber}Pic`]
+      ) {
+        if (isViewingFixedAsset && selectedItem) {
+          loadFixedAssetImagePreview(selectedItem, imageNumber);
+        } else {
+          loadImagePreview(selectedItemSerials[0], imageNumber);
+        }
+      }
+    }, 1000);
+  };
+
+  // Add a function to force reload all images
+  const reloadAllImages = () => {
+    if (selectedItem && isViewingFixedAsset) {
+      console.log("Reloading all images...");
+      loadFixedAssetImages(selectedItem);
+    } else if (selectedItemSerials[0]) {
+      console.log("Reloading images for item-grn...");
+      [1, 2, 3, 4].forEach((imageNum) => {
+        const imageField = `Item${imageNum}Pic`;
+        if (selectedItemImages.imagePaths[imageField]) {
+          loadImagePreview(selectedItemSerials[0], imageNum);
+        }
+      });
+    }
   };
 
   // Load image for preview
@@ -217,6 +296,24 @@ const ItemGRN = () => {
         }));
 
         return objectUrl;
+      } else {
+        console.warn(`Image not found at: ${imageUrl}`);
+        // Try alternative path - check if it might be in uploads folder
+        const alternativeUrl = `http://localhost:3000/uploads/${itemSerial}_${imageNumber}.jpg`;
+        try {
+          const altResponse = await fetch(alternativeUrl);
+          if (altResponse.ok) {
+            const blob = await altResponse.blob();
+            const objectUrl = URL.createObjectURL(blob);
+            setImagePreviews((prev) => ({
+              ...prev,
+              [`${itemSerial}_${imageNumber}`]: objectUrl,
+            }));
+            return objectUrl;
+          }
+        } catch (altError) {
+          console.warn(`Alternative image also not found: ${alternativeUrl}`);
+        }
       }
     } catch (error) {
       console.error(`Error loading image ${imageNumber}:`, error);
@@ -228,7 +325,7 @@ const ItemGRN = () => {
   // Auto-load image previews when images are available
   useEffect(() => {
     if (
-      isEditingMode &&
+      (isEditingMode || isViewingFixedAsset) &&
       selectedItemImages.hasImages &&
       selectedItemSerials[0]
     ) {
@@ -236,12 +333,59 @@ const ItemGRN = () => {
 
       // Load all available images
       [1, 2, 3, 4].forEach((imageNum) => {
-        if (selectedItemImages.imagePaths[`Item${imageNum}Pic`]) {
-          loadImagePreview(itemSerial, imageNum);
+        const imageField = `Item${imageNum}Pic`;
+        if (selectedItemImages.imagePaths[imageField]) {
+          if (isViewingFixedAsset && selectedItem) {
+            loadFixedAssetImagePreview(selectedItem, imageNum);
+          } else {
+            loadImagePreview(itemSerial, imageNum);
+          }
         }
       });
     }
-  }, [isEditingMode, selectedItemImages.hasImages, selectedItemSerials]);
+  }, [
+    isEditingMode,
+    isViewingFixedAsset,
+    selectedItemImages.hasImages,
+    selectedItemSerials,
+    selectedItem,
+  ]);
+
+  // Helper function to check if fixed asset has images
+  const checkFixedAssetImages = (fixedAssetItem) => {
+    if (!fixedAssetItem) return false;
+
+    return (
+      fixedAssetItem.Item1Pic ||
+      fixedAssetItem.Item2Pic ||
+      fixedAssetItem.Item3Pic ||
+      fixedAssetItem.Item4Pic
+    );
+  };
+
+  const fetchSuppliers = async () => {
+    try {
+      const response = await fetch("http://localhost:3000/api/supplier/all");
+      const result = await response.json();
+
+      if (result.success) {
+        // Store suppliers for dropdown
+        setDropdownOptions((prev) => ({
+          ...prev,
+          suppliers: result.data.map((supplier) => ({
+            id: supplier.id,
+            supplierCode: supplier.supplier_code,
+            name: supplier.supplier_name,
+            email: supplier.email,
+            telephone: supplier.telephone,
+            address: supplier.address,
+          })),
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching suppliers:", error);
+    }
+  };
 
   const fetchMiddleCategories = async () => {
     try {
@@ -447,9 +591,12 @@ const ItemGRN = () => {
         );
 
         if (grnExists) {
-          alert(
-            `GRN number ${newGrnNo} already exists. Please select it from the dropdown.`
-          );
+          Swal.fire({
+            icon: "warning",
+            title: "GRN Already Exists",
+            text: `GRN number ${newGrnNo} already exists. Please select it from the dropdown.`,
+            confirmButtonColor: "#3085d6",
+          });
           return;
         }
 
@@ -463,11 +610,21 @@ const ItemGRN = () => {
           ...prev,
         ]);
       } else {
-        alert("Error generating GRN number: " + result.message);
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "Error generating GRN number: " + result.message,
+          confirmButtonColor: "#d33",
+        });
       }
     } catch (error) {
       console.error("Error generating GRN number:", error);
-      alert("Error generating GRN number. Please try again.");
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Error generating GRN number. Please try again.",
+        confirmButtonColor: "#d33",
+      });
     } finally {
       setIsGeneratingGrn(false);
     }
@@ -619,13 +776,31 @@ const ItemGRN = () => {
     }
   };
 
-  // Handle file upload
+  // Handle file upload with preview
   const handleFileChange = (e, fileId) => {
     const file = e.target.files[0];
     if (file) {
+      // Check if it's an image file
+      const isImage = file.type.startsWith("image/");
+      let previewUrl = null;
+
+      if (isImage) {
+        // Create preview URL for image files
+        previewUrl = URL.createObjectURL(file);
+      }
+
       setFiles(
         files.map((f) =>
-          f.id === fileId ? { ...f, file: file, fileName: file.name } : f
+          f.id === fileId
+            ? {
+                ...f,
+                file: file,
+                fileName: file.name,
+                previewUrl: previewUrl,
+                isImage: isImage,
+                fileType: file.type,
+              }
+            : f
         )
       );
     }
@@ -642,6 +817,9 @@ const ItemGRN = () => {
         name: "",
         file: null,
         fileName: "No file chosen",
+        previewUrl: null,
+        isImage: false,
+        fileType: null,
       },
     ]);
   };
@@ -649,6 +827,15 @@ const ItemGRN = () => {
   // Remove file upload field
   const removeFileUpload = (fileId) => {
     if (files.length > 1) {
+      const fileToRemove = files.find((f) => f.id === fileId);
+      // Clean up object URL before removing
+      if (
+        fileToRemove &&
+        fileToRemove.previewUrl &&
+        fileToRemove.previewUrl.startsWith("blob:")
+      ) {
+        URL.revokeObjectURL(fileToRemove.previewUrl);
+      }
       setFiles(files.filter((f) => f.id !== fileId));
     }
   };
@@ -748,15 +935,23 @@ const ItemGRN = () => {
       const quantity = parseInt(formData.qty) || 1;
 
       if (!formData.qty || quantity < 1) {
-        alert("Please enter a valid quantity first.");
+        Swal.fire({
+          icon: "warning",
+          title: "Invalid Quantity",
+          text: "Please enter a valid quantity first.",
+          confirmButtonColor: "#3085d6",
+        });
         return;
       }
 
       const firstRow = assetRows[0];
       if (!firstRow.center || !firstRow.department || !firstRow.serialNo) {
-        alert(
-          "Please fill in Center, Department, and Serial No in the first row before creating replicate rows."
-        );
+        Swal.fire({
+          icon: "warning",
+          title: "Missing Information",
+          text: "Please fill in Center, Department, and Serial No in the first row before creating replicate rows.",
+          confirmButtonColor: "#3085d6",
+        });
         return;
       }
 
@@ -803,9 +998,12 @@ const ItemGRN = () => {
   // Remove asset row
   const removeAssetRow = (rowId) => {
     if (formData.replicate && assetRows.length > 1) {
-      alert(
-        "Cannot remove individual rows in Replicate mode. Uncheck Replicate first to remove rows."
-      );
+      Swal.fire({
+        icon: "warning",
+        title: "Cannot Remove Row",
+        text: "Cannot remove individual rows in Replicate mode. Uncheck Replicate first to remove rows.",
+        confirmButtonColor: "#3085d6",
+      });
       return;
     }
 
@@ -821,24 +1019,84 @@ const ItemGRN = () => {
   const fetchSearchResults = async (page = 1) => {
     setLoading(true);
     try {
+      // Use the new API endpoint for fixed assets
       const response = await fetch(
-        `http://localhost:3000/api/item-grn?page=${page}&limit=${itemsPerPage}&search=${encodeURIComponent(
-          searchQuery
-        )}`
+        `http://localhost:3000/api/item-grn-approve/assets/all`
       );
       const result = await response.json();
 
       if (result.success) {
-        setSearchResults(result.data || []);
-        setTotalPages(result.pagination?.pages || 1);
-        setTotalItems(result.pagination?.total || 0);
+        // If there's a search query, filter the results
+        let filteredResults = result.data || [];
+
+        if (searchQuery.trim() !== "") {
+          const query = searchQuery.toLowerCase();
+          filteredResults = filteredResults.filter((item) => {
+            return (
+              (item.ItemName && item.ItemName.toLowerCase().includes(query)) ||
+              (item.InvoiceNo &&
+                item.InvoiceNo.toLowerCase().includes(query)) ||
+              (item.GrnNo && item.GrnNo.toLowerCase().includes(query)) ||
+              (item.SerialNo && item.SerialNo.toLowerCase().includes(query)) ||
+              (item.BarcodeNo &&
+                item.BarcodeNo.toLowerCase().includes(query)) ||
+              (item.PONo && item.PONo.toLowerCase().includes(query)) ||
+              (item.Manufacture &&
+                item.Manufacture.toLowerCase().includes(query)) ||
+              (item.ItemCode && item.ItemCode.toLowerCase().includes(query)) ||
+              (item.center_name &&
+                item.center_name.toLowerCase().includes(query)) ||
+              (item.department_name &&
+                item.department_name.toLowerCase().includes(query))
+            );
+          });
+        }
+
+        // Sort by CreatedAt descending
+        filteredResults.sort((a, b) => {
+          const dateA = new Date(a.CreatedAt || a.CreatedAt);
+          const dateB = new Date(b.CreatedAt || b.CreatedAt);
+          return dateB - dateA;
+        });
+
+        // Manual pagination
+        const itemsPerPage = 20;
+        const startIndex = (page - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedResults = filteredResults.slice(startIndex, endIndex);
+
+        setSearchResults(paginatedResults);
+        setTotalPages(Math.ceil(filteredResults.length / itemsPerPage));
+        setTotalItems(filteredResults.length);
         setCurrentPage(page);
       }
     } catch (error) {
-      console.error("Error fetching search results:", error);
-      alert("Error fetching data. Please try again.");
+      console.error("Error fetching fixed assets:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Error fetching data. Please try again.",
+        confirmButtonColor: "#d33",
+      });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAllAssets = async () => {
+    try {
+      const response = await fetch(
+        `http://localhost:3000/api/item-grn-approve/assets/all`
+      );
+      const result = await response.json();
+
+      if (result.success) {
+        return result.data || [];
+      }
+      return [];
+    } catch (error) {
+      console.error("Error fetching all assets:", error);
+      return [];
     }
   };
 
@@ -859,6 +1117,7 @@ const ItemGRN = () => {
   const openBrowseModal = () => {
     setShowBrowseModal(true);
     setSearchQuery("");
+    setCurrentPage(1);
     fetchSearchResults(1);
   };
 
@@ -872,37 +1131,64 @@ const ItemGRN = () => {
   // Handle delete
   const handleDelete = async () => {
     if (!selectedItemSerials.length) {
-      alert("No item selected to delete.");
+      Swal.fire({
+        icon: "warning",
+        title: "No Item Selected",
+        text: "No item selected to delete.",
+        confirmButtonColor: "#3085d6",
+      });
       return;
     }
 
-    if (
-      window.confirm(
-        `Are you sure you want to delete ${selectedItemSerials.length} item(s) with GRN ${formData.grnNo}?`
-      )
-    ) {
-      try {
-        // Delete all items with this GRN number
-        const deletePromises = selectedItemSerials.map((itemSerial) =>
-          fetch(`http://localhost:3000/api/item-grn/${itemSerial}`, {
-            method: "DELETE",
-          })
-        );
+    Swal.fire({
+      title: "Are you sure?",
+      text: `You want to delete ${selectedItemSerials.length} item(s) with GRN ${formData.grnNo}?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Yes, delete it!",
+      cancelButtonText: "Cancel",
+    }).then(async (result) => {
+      if (result.isConfirmed) {
+        try {
+          // Delete all items with this GRN number
+          const deletePromises = selectedItemSerials.map((itemSerial) =>
+            fetch(`http://localhost:3000/api/item-grn/${itemSerial}`, {
+              method: "DELETE",
+            })
+          );
 
-        const results = await Promise.all(deletePromises);
-        const allSuccess = results.every((response) => response.ok);
+          const results = await Promise.all(deletePromises);
+          const allSuccess = results.every((response) => response.ok);
 
-        if (allSuccess) {
-          alert(`${selectedItemSerials.length} item(s) deleted successfully!`);
-          handleReset();
-        } else {
-          alert("Some items could not be deleted. Please try again.");
+          if (allSuccess) {
+            Swal.fire({
+              icon: "success",
+              title: "Deleted!",
+              text: `${selectedItemSerials.length} item(s) deleted successfully!`,
+              confirmButtonColor: "#019159",
+            });
+            handleReset();
+          } else {
+            Swal.fire({
+              icon: "error",
+              title: "Error",
+              text: "Some items could not be deleted. Please try again.",
+              confirmButtonColor: "#d33",
+            });
+          }
+        } catch (error) {
+          console.error("Error deleting items:", error);
+          Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: "Error deleting items. Please try again.",
+            confirmButtonColor: "#d33",
+          });
         }
-      } catch (error) {
-        console.error("Error deleting items:", error);
-        alert("Error deleting items. Please try again.");
       }
-    }
+    });
   };
 
   // Helper to check if form has been modified
@@ -943,337 +1229,407 @@ const ItemGRN = () => {
   }, [isEditingMode, hasFormChanges]);
 
   // Handle row click to load item data
+  // Handle row click to load item data
   const handleRowClick = async (item) => {
     try {
-      // Get the GRN number from the clicked item
-      const grnNo = item.GrnNo;
+      // Check if this is from fixed_asset_master or item_grn
+      const isFixedAsset =
+        item.ItemCode !== undefined || item.item_serial === undefined;
 
+      if (isFixedAsset) {
+        // This is from fixed_asset_master - fetch all items with same GRN
+        await handleFixedAssetClick(item);
+      } else {
+        // This is from item_grn - handle as before
+        await handleGrnItemClick(item);
+      }
+    } catch (error) {
+      console.error("Error loading item details:", error);
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Error loading item details. Please try again.",
+        confirmButtonColor: "#d33",
+      });
+    }
+  };
+
+  // Handle fixed asset click (view-only mode)
+  // Handle fixed asset click (view-only mode)
+  const handleFixedAssetClick = async (item) => {
+    try {
+      const grnNo = item.GrnNo;
       if (!grnNo) {
-        alert("No GRN number found for this item");
+        Swal.fire({
+          icon: "warning",
+          title: "No GRN Number",
+          text: "No GRN number found for this item",
+          confirmButtonColor: "#3085d6",
+        });
+        return;
+      }
+      // Fetch all items with this GRN number from fixed_asset_master
+      const allItems = await fetchAssetsByGrnNo(grnNo);
+      if (allItems.length === 0) {
+        Swal.fire({
+          icon: "warning",
+          title: "No Items Found",
+          text: `No items found for GRN: ${grnNo}`,
+          confirmButtonColor: "#3085d6",
+        });
         return;
       }
 
-      // Fetch all items with this GRN number
-      const response = await fetch(
-        `http://localhost:3000/api/item-grn/by-grn/${grnNo}`
-      );
-      const result = await response.json();
+      console.log(`Found ${allItems.length} items for GRN: ${grnNo}`);
 
-      if (result.success) {
-        const grnData = result.data;
-        setSelectedItem(grnData);
-        setSelectedGrnData(grnData);
+      // Set the clicked item for reference
+      setSelectedItem(item);
+      setIsViewingFixedAsset(true);
+      setIsEditingMode(false);
 
-        const itemSerials = grnData.items.map((item) => item.item_serial);
-        setSelectedItemSerials(itemSerials);
+      // Store all related items
+      setAllRelatedItems(allItems);
 
-        const firstItem = grnData.items[0];
-        const commonInfo = grnData.common_info;
-        const itemCount = grnData.total_items;
+      // Use the first item to populate common fields
+      const firstItem = allItems[0];
 
-        const formatDateForInput = (dateString) => {
-          if (!dateString) return "";
-          try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return "";
-            return date.toISOString().split("T")[0];
-          } catch (error) {
-            console.error("Error formatting date:", dateString, error);
-            return "";
-          }
-        };
+      // Load images for the first item
+      await loadFixedAssetImages(firstItem);
 
-        if (grnData.items && grnData.items.length > 0) {
-          const firstItemSerial = grnData.items[0].item_serial;
-          await loadItemImages(firstItemSerial);
-
-          // Preload first image if available
-          if (result.data.has_images) {
-            setTimeout(async () => {
-              // Load departments for each unique center/location combination
-              const uniqueCombinations = new Set();
-              assetRowsData.forEach((row) => {
-                if (row.center && row.location) {
-                  uniqueCombinations.add(`${row.center}_${row.location}`);
-                }
-              });
-
-              // Load all departments
-              const deptPromises = Array.from(uniqueCombinations).map(
-                async (combo) => {
-                  const [centerId, locationId] = combo.split("_");
-                  return await loadFilteredDepartmentsForLocation(
-                    centerId,
-                    locationId
-                  );
-                }
-              );
-
-              try {
-                const allDeptsArrays = await Promise.all(deptPromises);
-                const allDepartments = allDeptsArrays.flat();
-
-                setFilteredDepartments((prev) => {
-                  const newDepartments = [...prev];
-                  allDepartments.forEach((dept) => {
-                    if (!newDepartments.some((d) => d.id === dept.id)) {
-                      newDepartments.push(dept);
-                    }
-                  });
-                  return newDepartments;
-                });
-              } catch (error) {
-                console.error("Error loading departments:", error);
-              }
-            }, 100);
-          }
-        }
-
-        // IMPORTANT: Find the matching middle category from dropdownOptions
-        const middleCategoryFromApi = firstItem.middle_category_id;
-        let mappedMiddleCategory = "";
-
-        // Try to find matching middle category by middle_category_id from API
-        const foundMiddleCategory = dropdownOptions.middleCategories.find(
-          (cat) => cat.middleCategoryId === middleCategoryFromApi
-        );
-
-        if (foundMiddleCategory) {
-          mappedMiddleCategory = foundMiddleCategory.id.toString();
-        } else {
-          // If not found by middleCategoryId, try by id
-          const foundById = dropdownOptions.middleCategories.find(
-            (cat) => cat.id.toString() === middleCategoryFromApi
-          );
-          if (foundById) {
-            mappedMiddleCategory = foundById.id.toString();
-          } else {
-            console.warn(
-              "Middle category not found in dropdown:",
-              middleCategoryFromApi
-            );
-            // Set as is and let the user see it's not matching
-            mappedMiddleCategory = middleCategoryFromApi;
-          }
-        }
-
-        // IMPORTANT: Find the matching sub category from dropdownOptions
-        const subCategoryFromApi = firstItem.sub_category_id;
-        let mappedSubCategory = "";
-
-        // First filter subcategories by the selected middle category
-        const filteredSubCats = dropdownOptions.subCategories.filter(
-          (subCat) => {
-            // Try to match by middleCategoryId
-            return (
-              subCat.middleCategoryId == mappedMiddleCategory ||
-              subCat.id == mappedMiddleCategory ||
-              // Also check if this subcategory belongs to the found middle category
-              (foundMiddleCategory &&
-                subCat.middleCategoryId == foundMiddleCategory.middleCategoryId)
-            );
-          }
-        );
-
-        // Now find the specific subcategory
-        const foundSubCategory =
-          filteredSubCats.find(
-            (sub) => sub.subCategoryId === subCategoryFromApi
-          ) ||
-          filteredSubCats.find(
-            (sub) => sub.id.toString() === subCategoryFromApi
-          );
-
-        if (foundSubCategory) {
-          mappedSubCategory = foundSubCategory.id.toString();
-        } else {
-          console.warn(
-            "Sub category not found in dropdown:",
-            subCategoryFromApi
-          );
-          mappedSubCategory = subCategoryFromApi;
-        }
-
-        // Map backend data to frontend form structure
-        const formDataUpdate = {
-          // Left Column - Section 1
-          middleCategory: mappedMiddleCategory,
-          subCategory: mappedSubCategory,
-          itemName: firstItem.item_name || "",
-          poNo: commonInfo.po_no || "",
-          brand: commonInfo.brand || "",
-          model: firstItem.model || "",
-
-          // Right Column - Section 1
-          supplier: commonInfo.supplier || "",
-          qty: itemCount.toString(),
-          date: formatDateForInput(commonInfo.purchase_date),
-          invoiceNo: commonInfo.invoice_no || "",
-          unitPrice: commonInfo.unit_price || "",
-          invTotal: commonInfo.invoice_total || "",
-
-          // Left Column - Section 3
-          manufacturer: commonInfo.manufacture || "",
-          type: commonInfo.type || "",
-          source: commonInfo.source || "",
-          receiveType: commonInfo.in_type || "",
-          remarks: commonInfo.remarks || "",
-
-          // Right Column - Section 3
-          grnDate: formatDateForInput(commonInfo.grn_date),
-          grnNo: grnData.grn_no || "",
-          warrantyExp: formatDateForInput(commonInfo.warranty_expire_date),
-          serviceStart: formatDateForInput(
-            commonInfo.service_agreement_start_date
-          ),
-          serviceEnd: formatDateForInput(commonInfo.service_agreement_end_date),
-          salvageValue: commonInfo.salvage_value || "",
-
-          // Checkbox
-          replicate: itemCount > 1 ? true : false,
-        };
-
-        setFormData(formDataUpdate);
-
-        // Create asset allocation rows for ALL items
-        const assetRowsData = grnData.items.map((itemData, index) => {
-          const assetRowsData = grnData.items.map((itemData, index) => {
-            const centerId = itemData.center_id || itemData.station_id || "";
-            const location = itemData.location || "";
-            const departmentId = itemData.department_serial || "";
-            const employeeId = itemData.employee_serial || "";
-
-            return {
-              id: itemData.item_serial || index + 1,
-              center: centerId,
-              location: location,
-              department: departmentId,
-              employee: employeeId?.toString() || "",
-              serialNo: itemData.serial_no || "",
-              bookNoLocalId: itemData.book_no || "",
-              barcodeNo: itemData.barcode_no || "",
-            };
+      const formatDateForInput = (dateString) => {
+        if (!dateString) return "";
+        try {
+          const date = new Date(dateString);
+          if (isNaN(date.getTime())) return "";
+          return date.toISOString().split("T")[0];
+        } catch (error) {
+          console.error("Error loading fixed asset details:", error);
+          Swal.fire({
+            icon: "error",
+            title: "Error",
+            text: "Error loading item details. Please try again.",
+            confirmButtonColor: "#d33",
           });
-
-          setAssetRows(assetRowsData);
-
-          // Load filtered data for each row after setting state
-          setTimeout(() => {
-            assetRowsData.forEach((row, index) => {
-              if (row.center) {
-                // Load locations for this center
-                loadFilteredLocationsForCenter(row.center).then((locations) => {
-                  setFilteredLocations((prev) => {
-                    const newLocations = [...prev];
-                    // Add locations for this specific center
-                    locations.forEach((loc) => {
-                      if (!newLocations.find((l) => l.id === loc.id)) {
-                        newLocations.push(loc);
-                      }
-                    });
-                    return newLocations;
-                  });
-                });
-
-                if (row.location) {
-                  // Load departments for this center/location
-                  loadFilteredDepartmentsForLocation(
-                    row.center,
-                    row.location
-                  ).then((depts) => {
-                    setFilteredDepartments((prev) => {
-                      const newDepartments = [...prev];
-                      depts.forEach((dept) => {
-                        if (!newDepartments.find((d) => d.id === dept.id)) {
-                          newDepartments.push(dept);
-                        }
-                      });
-                      return newDepartments;
-                    });
-                  });
-                }
-              }
-            });
-          }, 100);
-          // Get center ID - check both center_id and station_id
-          const centerId = itemData.center_id || itemData.station_id || "";
-
-          // Find matching center in dropdown
-          const matchedCenter = dropdownOptions.centers.find(
-            (center) => center.id === centerId || center.name.includes(centerId)
-          );
-
-          // Get location
-          const location = itemData.location || "";
-
-          // Find matching location in filtered locations
-          const filteredLocs = getFilteredLocations(
-            matchedCenter?.id || centerId
-          );
-          const matchedLocation = filteredLocs.find(
-            (loc) => loc.id === location || loc.name.includes(location)
-          );
-
-          // Get department
-          const departmentId = itemData.department_serial || "";
-
-          // Find matching department
-          const filteredDepts = getFilteredDepartments(
-            matchedCenter?.id || centerId,
-            matchedLocation?.id || location
-          );
-          const matchedDepartment = filteredDepts.find(
-            (dept) =>
-              dept.id === departmentId || dept.name.includes(departmentId)
-          );
-
-          // Get employee
-          const employeeId = itemData.employee_serial || "";
-
-          // Find matching employee
-          const filteredEmps = getFilteredEmployees(
-            matchedDepartment?.id || departmentId
-          );
-          const matchedEmployee = filteredEmps.find(
-            (emp) => emp.id.toString() === employeeId.toString()
-          );
-
-          return {
-            id: index + 1,
-            center: matchedCenter?.id || centerId || "",
-            location: matchedLocation?.id || location || "",
-            department: matchedDepartment?.id || departmentId || "",
-            employee:
-              matchedEmployee?.id?.toString() || employeeId?.toString() || "",
-            serialNo: itemData.serial_no || "",
-            bookNoLocalId: itemData.book_no || "",
-            barcodeNo: itemData.barcode_no || "",
-          };
-        });
-
-        setAssetRows(assetRowsData);
-        setIsEditingMode(true);
-
-        if (
-          !existingGrnNumbers.some(
-            (grn) =>
-              grn.grn_no === grnData.grn_no || grn.GrnNo === grnData.grn_no
-          )
-        ) {
-          setExistingGrnNumbers((prev) => [
-            { grn_no: grnData.grn_no, GrnNo: grnData.grn_no },
-            ...prev,
-          ]);
         }
+      };
 
-        closeBrowseModal();
-        window.scrollTo({ top: 0, behavior: "smooth" });
+      // Find the matching middle category
+      const middleCategoryFromApi = firstItem.MiddleCategory;
+      let mappedMiddleCategory = "";
+
+      const foundMiddleCategory = dropdownOptions.middleCategories.find(
+        (cat) => cat.middleCategoryId === middleCategoryFromApi
+      );
+
+      if (foundMiddleCategory) {
+        mappedMiddleCategory = foundMiddleCategory.id.toString();
+      } else {
+        const foundById = dropdownOptions.middleCategories.find(
+          (cat) => cat.id.toString() === middleCategoryFromApi
+        );
+        if (foundById) {
+          mappedMiddleCategory = foundById.id.toString();
+        } else {
+          mappedMiddleCategory = middleCategoryFromApi;
+        }
       }
+
+      // Find the matching sub category
+      const subCategoryFromApi =
+        firstItem.SubCategory || firstItem.SubCategoryId;
+      let mappedSubCategory = "";
+
+      const filteredSubCats = dropdownOptions.subCategories.filter((subCat) => {
+        return (
+          subCat.middleCategoryId == mappedMiddleCategory ||
+          subCat.id == mappedMiddleCategory ||
+          (foundMiddleCategory &&
+            subCat.middleCategoryId == foundMiddleCategory.middleCategoryId)
+        );
+      });
+
+      const foundSubCategory =
+        filteredSubCats.find(
+          (sub) => sub.subCategoryId === subCategoryFromApi
+        ) ||
+        filteredSubCats.find((sub) => sub.id.toString() === subCategoryFromApi);
+
+      if (foundSubCategory) {
+        mappedSubCategory = foundSubCategory.id.toString();
+      } else {
+        mappedSubCategory = subCategoryFromApi;
+      }
+
+      // Map backend data to frontend form structure
+      const formDataUpdate = {
+        // Left Column - Section 1
+        middleCategory: mappedMiddleCategory,
+        subCategory: mappedSubCategory,
+        itemName: firstItem.ItemName || "",
+        poNo: firstItem.PONo || "",
+        brand: firstItem.Brand || "",
+        model: firstItem.Model || "",
+
+        // Right Column - Section 1
+        supplier: firstItem.Supplier || "",
+        qty: allItems.length.toString(), // Show total count
+        date: formatDateForInput(firstItem.PurchaseDate),
+        invoiceNo: firstItem.InvoiceNo || "",
+        unitPrice: firstItem.UnitPrice || "",
+        invTotal: firstItem.InvoiceTotal || "",
+
+        // Left Column - Section 3
+        manufacturer: firstItem.Manufacture || "",
+        type: firstItem.Type || "",
+        source: firstItem.Source || "",
+        receiveType: firstItem.ReceiveType || firstItem.InType || "",
+        remarks: firstItem.Remarks || "",
+
+        // Right Column - Section 3
+        grnDate: formatDateForInput(firstItem.GRNdate),
+        grnNo: grnNo,
+        warrantyExp: formatDateForInput(firstItem.WarrantyExpireDate),
+        serviceStart: formatDateForInput(firstItem.ServiceAgreementStartDate),
+        serviceEnd: formatDateForInput(firstItem.ServiceAgreementEndDate),
+        salvageValue: firstItem.SalvageValue || "",
+
+        // Checkbox - set to true if multiple items
+        replicate: allItems.length > 1,
+      };
+
+      setFormData(formDataUpdate);
+
+      // Create asset allocation rows for ALL items
+      const assetRowsData = allItems.map((assetItem, index) => ({
+        id: assetItem.ItemSerial || index + 1,
+        center: assetItem.Center || assetItem.StationId || "",
+        location: assetItem.Location || assetItem.X || "",
+        department: assetItem.Department || assetItem.DepartmentSerial || "",
+        employee:
+          assetItem.Employee || assetItem.EmployeeSerial?.toString() || "",
+        serialNo: assetItem.SerialNo || "",
+        bookNoLocalId: assetItem.BookNo || "",
+        barcodeNo: assetItem.BarcodeNo || "",
+      }));
+
+      setAssetRows(assetRowsData);
+
+      // Store all item serials
+      const itemSerials = allItems.map((asset) => asset.ItemSerial);
+      setSelectedItemSerials(itemSerials);
+
+      closeBrowseModal();
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
-      console.error("Error fetching item details:", error);
+      console.error("Error loading fixed asset details:", error);
       alert("Error loading item details. Please try again.");
     }
   };
+
+  // Load fixed asset images
+  const loadFixedAssetImages = async (fixedAssetItem) => {
+    try {
+      console.log(
+        "Starting to load images for item:",
+        fixedAssetItem.ItemSerial
+      );
+
+      // Check which images exist
+      const imagePaths = {};
+      let imageCount = 0;
+
+      // Check all 4 possible image fields
+      [1, 2, 3, 4].forEach((imageNum) => {
+        const imageField = `Item${imageNum}Pic`;
+        if (
+          fixedAssetItem[imageField] &&
+          fixedAssetItem[imageField].trim() !== ""
+        ) {
+          imagePaths[imageField] = fixedAssetItem[imageField];
+          imageCount++;
+          console.log(`Found image ${imageNum}:`, fixedAssetItem[imageField]);
+        }
+      });
+
+      console.log(`Found ${imageCount} images total for item:`, imagePaths);
+
+      // Update the selectedItemImages state IMMEDIATELY
+      const newSelectedItemImages = {
+        hasImages: imageCount > 0,
+        imageCount: imageCount,
+        imagePaths: imagePaths,
+      };
+
+      console.log("Setting selectedItemImages to:", newSelectedItemImages);
+      setSelectedItemImages(newSelectedItemImages);
+
+      // Store the item serial
+      const itemSerial = fixedAssetItem.ItemSerial;
+      console.log(`Setting selectedItemSerials to: [${itemSerial}]`);
+      setSelectedItemSerials([itemSerial]);
+
+      // If there are images, load previews
+      if (imageCount > 0) {
+        console.log(`Loading ${imageCount} image previews...`);
+
+        // Load all available images
+        [1, 2, 3, 4].forEach((imageNum) => {
+          const imageField = `Item${imageNum}Pic`;
+          if (imagePaths[imageField]) {
+            console.log(`Loading preview for ${imageField}`);
+            // Use setTimeout to avoid blocking the main thread
+            setTimeout(() => {
+              loadFixedAssetImagePreview(fixedAssetItem, imageNum);
+            }, 100 * imageNum); // Stagger the loading
+          }
+        });
+      } else {
+        console.log("No images found for this item");
+        // Clear any existing previews
+        setImagePreviews({});
+      }
+    } catch (error) {
+      console.error("Error in loadFixedAssetImages:", error);
+      setSelectedItemImages({
+        hasImages: false,
+        imageCount: 0,
+        imagePaths: {},
+      });
+    }
+  };
+
+  // Load fixed asset image for preview
+  const loadFixedAssetImagePreview = async (fixedAssetItem, imageNumber) => {
+    const imageField = `Item${imageNumber}Pic`;
+    const rawImagePath = fixedAssetItem[imageField];
+
+    if (!rawImagePath || rawImagePath.trim() === "") {
+      console.log(`No image path for ${imageField}`);
+      return null;
+    }
+
+    try {
+      // Clean up the image path
+      let imagePath = rawImagePath.trim();
+
+      // Remove any quotes
+      imagePath = imagePath.replace(/['"]/g, "");
+
+      // Normalize path separators
+      imagePath = imagePath.replace(/\\/g, "/");
+
+      // Ensure it doesn't start with a slash (to avoid double slashes)
+      imagePath = imagePath.replace(/^\//, "");
+
+      // Create the image URL
+      const imageUrl = `http://localhost:3000/${imagePath}`;
+      console.log(`Attempting to load image ${imageNumber} from:`, imageUrl);
+
+      const response = await fetch(imageUrl, {
+        method: "GET",
+        headers: {
+          Accept: "image/*",
+        },
+        cache: "no-cache", // Prevent caching issues
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+
+        if (blob.type.startsWith("image/")) {
+          const objectUrl = URL.createObjectURL(blob);
+          const previewKey = `${fixedAssetItem.ItemSerial}_${imageNumber}`;
+
+          console.log(
+            `Successfully loaded image ${imageNumber}, setting preview for key: ${previewKey}`
+          );
+
+          // Update the imagePreviews state
+          setImagePreviews((prev) => {
+            const updated = {
+              ...prev,
+              [previewKey]: objectUrl,
+            };
+            console.log(
+              `Updated imagePreviews with key ${previewKey}, total keys:`,
+              Object.keys(updated).length
+            );
+            return updated;
+          });
+
+          return objectUrl;
+        } else {
+          console.warn(
+            `Loaded blob is not an image for ${imageNumber}:`,
+            blob.type
+          );
+        }
+      } else {
+        console.warn(
+          `Image not found at ${imageUrl}, status: ${response.status}`
+        );
+
+        // Try alternative paths
+        const alternativePaths = [
+          `http://localhost:3000/uploads/${imagePath.split("/").pop()}`, // Just filename in uploads
+          `http://localhost:3000/uploads/${fixedAssetItem.ItemSerial}_${imageNumber}.jpg`,
+          `http://localhost:3000/uploads/${fixedAssetItem.ItemSerial}_${imageNumber}.png`,
+          `http://localhost:3000/uploads/${fixedAssetItem.ItemSerial}_${imageNumber}.jpeg`,
+        ];
+
+        for (const altUrl of alternativePaths) {
+          try {
+            console.log(`Trying alternative URL: ${altUrl}`);
+            const altResponse = await fetch(altUrl);
+            if (altResponse.ok) {
+              const altBlob = await altResponse.blob();
+              if (altBlob.type.startsWith("image/")) {
+                const altObjectUrl = URL.createObjectURL(altBlob);
+                const previewKey = `${fixedAssetItem.ItemSerial}_${imageNumber}`;
+
+                setImagePreviews((prev) => ({
+                  ...prev,
+                  [previewKey]: altObjectUrl,
+                }));
+
+                console.log(
+                  `Successfully loaded from alternative URL: ${altUrl}`
+                );
+                return altObjectUrl;
+              }
+            }
+          } catch (altError) {
+            console.log(`Alternative URL failed: ${altUrl}`, altError.message);
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`Error loading image ${imageNumber}:`, error);
+    }
+
+    return null;
+  };
+
+  const FallbackImage = ({ imageNumber }) => (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "#f5f5f5",
+        color: "#999",
+        fontSize: "14px",
+        textAlign: "center",
+        padding: "10px",
+      }}
+    >
+      <div style={{ fontSize: "24px", marginBottom: "5px" }}>📷</div>
+      <div>Image {imageNumber}</div>
+    </div>
+  );
 
   // Helper function to load filtered locations for a center
   const loadFilteredLocationsForCenter = async (centerId) => {
@@ -1355,16 +1711,24 @@ const ItemGRN = () => {
 
     if (missingFields.length > 0) {
       const fieldNames = missingFields.map((f) => f.name).join(", ");
-      alert(`Please fill in the following required fields: ${fieldNames}`);
+      Swal.fire({
+        icon: "warning",
+        title: "Required Fields Missing",
+        html: `Please fill in the following required fields:<br><strong>${fieldNames}</strong>`,
+        confirmButtonColor: "#3085d6",
+      });
       return;
     }
 
     if (formData.replicate) {
       const quantity = parseInt(formData.qty) || 0;
       if (assetRows.length !== quantity) {
-        alert(
-          `When Replicate is checked, you need exactly ${quantity} asset allocation rows. Currently you have ${assetRows.length} rows. Please click the "+" button to create all ${quantity} rows.`
-        );
+        Swal.fire({
+          icon: "warning",
+          title: "Asset Rows Mismatch",
+          html: `When Replicate is checked, you need exactly <strong>${quantity}</strong> asset allocation rows.<br>Currently you have <strong>${assetRows.length}</strong> rows.<br>Please click the "+" button to create all ${quantity} rows.`,
+          confirmButtonColor: "#3085d6",
+        });
         return;
       }
 
@@ -1373,9 +1737,12 @@ const ItemGRN = () => {
       );
 
       if (invalidRows.length > 0) {
-        alert(
-          `Please fill in Center, Department, and Serial No for all ${quantity} asset allocation rows.`
-        );
+        Swal.fire({
+          icon: "warning",
+          title: "Incomplete Asset Rows",
+          text: `Please fill in Center, Department, and Serial No for all ${quantity} asset allocation rows.`,
+          confirmButtonColor: "#3085d6",
+        });
         return;
       }
     }
@@ -1384,7 +1751,7 @@ const ItemGRN = () => {
       const formDataToSend = new FormData();
 
       const fieldMapping = {
-        middleCategory: "middle_category", // This should map to database column
+        middleCategory: "middle_category",
         subCategory: "sub_category",
         itemName: "item_name",
         poNo: "po_no",
@@ -1441,23 +1808,47 @@ const ItemGRN = () => {
       const result = await response.json();
 
       if (result.success) {
-        alert(
-          `Item GRN saved successfully! ${
-            result.data.is_existing
-              ? "Added to existing GRN"
-              : "New GRN created"
-          }`
-        );
+        Swal.fire({
+          icon: "success",
+          title: "Success!",
+          html: `<div style="text-align: center;">
+                   <div style="font-size: 24px; font-weight: bold; color: #019159; margin-bottom: 10px;">
+                     <span style="font-size: 28px;">${
+                       formData.grnNo
+                     }</span> SAVED
+                   </div>
+                   <div style="font-size: 16px; color: #666; margin-top: 10px;">
+                     ${
+                       result.data.is_existing
+                         ? "Added to existing GRN"
+                         : "New GRN created"
+                     }
+                   </div>
+                 </div>`,
+          confirmButtonColor: "#019159",
+          confirmButtonText: "OK",
+          width: 500,
+        });
         handleReset();
       } else {
-        alert("Error: " + result.message);
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: result.message || "Error saving item GRN",
+          confirmButtonColor: "#d33",
+        });
         if (result.errors) {
           console.log("Validation errors:", result.errors);
         }
       }
     } catch (error) {
       console.error("Error submitting form:", error);
-      alert("Error submitting form. Please try again.");
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Error submitting form. Please try again.",
+        confirmButtonColor: "#d33",
+      });
     }
   };
 
@@ -1465,7 +1856,7 @@ const ItemGRN = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
 
-    // Validate required fields
+    // Validate required fields (same as handleCreate)
     const requiredFields = [
       { field: "middleCategory", name: "Middle Category" },
       { field: "subCategory", name: "Sub Category" },
@@ -1486,16 +1877,24 @@ const ItemGRN = () => {
 
     if (missingFields.length > 0) {
       const fieldNames = missingFields.map((f) => f.name).join(", ");
-      alert(`Please fill in the following required fields: ${fieldNames}`);
+      Swal.fire({
+        icon: "warning",
+        title: "Required Fields Missing",
+        html: `Please fill in the following required fields:<br><strong>${fieldNames}</strong>`,
+        confirmButtonColor: "#3085d6",
+      });
       return;
     }
 
     if (formData.replicate) {
       const quantity = parseInt(formData.qty) || 0;
       if (assetRows.length !== quantity) {
-        alert(
-          `When Replicate is checked, you need exactly ${quantity} asset allocation rows. Currently you have ${assetRows.length} rows.`
-        );
+        Swal.fire({
+          icon: "warning",
+          title: "Asset Rows Mismatch",
+          text: `When Replicate is checked, you need exactly ${quantity} asset allocation rows. Currently you have ${assetRows.length} rows.`,
+          confirmButtonColor: "#3085d6",
+        });
         return;
       }
 
@@ -1504,9 +1903,12 @@ const ItemGRN = () => {
       );
 
       if (invalidRows.length > 0) {
-        alert(
-          `Please fill in Center, Department, and Serial No for all ${quantity} asset allocation rows.`
-        );
+        Swal.fire({
+          icon: "warning",
+          title: "Incomplete Asset Rows",
+          text: `Please fill in Center, Department, and Serial No for all ${quantity} asset allocation rows.`,
+          confirmButtonColor: "#3085d6",
+        });
         return;
       }
     }
@@ -1605,6 +2007,14 @@ const ItemGRN = () => {
       const originalText = saveButton.innerHTML;
       saveButton.innerHTML = '<span class="btn-icon">⏳</span> UPDATING...';
       saveButton.disabled = true;
+      Swal.fire({
+        title: "Updating...",
+        text: `Updating items with GRN: ${formData.grnNo}`,
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
 
       // Send update request with GRN number
       const response = await fetch(
@@ -1612,40 +2022,54 @@ const ItemGRN = () => {
         {
           method: "PUT",
           body: updateData,
-          // Note: Do NOT set Content-Type header for FormData
         }
       );
 
       const result = await response.json();
       console.log("Update response:", result);
 
-      // Restore button state
-      saveButton.innerHTML = originalText;
-      saveButton.disabled = false;
+      Swal.close();
 
       if (result.success) {
-        alert(
-          `${result.data.updated_count || 1} item(s) updated successfully!\n` +
-            `GRN: ${grnNo}\n` +
-            `Items updated: ${result.data.updated_count}`
-        );
+        Swal.fire({
+          icon: "success",
+          title: "Success!",
+          html: `<div style="text-align: center;">
+                   <div style="font-size: 24px; font-weight: bold; color: #2196F3; margin-bottom: 10px;">
+                     GRN <span style="font-size: 28px;">${
+                       formData.grnNo
+                     }</span> UPDATED
+                   </div>
+                   <div style="font-size: 16px; color: #666; margin-top: 10px;">
+                     ${
+                       result.data.updated_count || 1
+                     } item(s) updated successfully
+                   </div>
+                 </div>`,
+          confirmButtonColor: "#2196F3",
+          confirmButtonText: "OK",
+          width: 500,
+        });
         handleReset();
       } else {
-        alert("Error: " + result.message);
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: result.message || "Error updating item GRN",
+          confirmButtonColor: "#d33",
+        });
         if (result.errors) {
           console.log("Validation errors:", result.errors);
         }
       }
     } catch (error) {
       console.error("Error updating form:", error);
-      alert("Error updating form. Please try again.");
-
-      // Restore button state in case of error
-      const saveButton = e.target.querySelector('button[type="submit"]');
-      if (saveButton) {
-        saveButton.innerHTML = '<span class="btn-icon">✓</span> UPDATE';
-        saveButton.disabled = false;
-      }
+      Swal.fire({
+        icon: "error",
+        title: "Error",
+        text: "Error updating form. Please try again.",
+        confirmButtonColor: "#d33",
+      });
     }
   };
 
@@ -1654,9 +2078,39 @@ const ItemGRN = () => {
     e.preventDefault();
 
     if (isEditingMode) {
-      await handleUpdate(e);
+      // Show confirmation dialog for update
+      Swal.fire({
+        title: "Update Confirmation",
+        html: `Are you sure you want to update <strong>GRN ${formData.grnNo}</strong>?`,
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#2196F3",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: "Yes, update it!",
+        cancelButtonText: "Cancel",
+        reverseButtons: true,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          handleUpdate(e);
+        }
+      });
     } else {
-      await handleCreate(e);
+      // Show confirmation dialog for create
+      Swal.fire({
+        title: "Save Confirmation",
+        html: `Are you sure you want to save <strong>GRN ${formData.grnNo}</strong>?`,
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonColor: "#019159",
+        cancelButtonColor: "#6c757d",
+        confirmButtonText: "Yes, save it!",
+        cancelButtonText: "Cancel",
+        reverseButtons: true,
+      }).then((result) => {
+        if (result.isConfirmed) {
+          handleCreate(e);
+        }
+      });
     }
   };
 
@@ -1721,6 +2175,8 @@ const ItemGRN = () => {
     setSelectedItemSerials([]);
     setIsEditingMode(false);
     setIsEditing(false);
+    setIsViewingFixedAsset(false); // Add this
+    setAllRelatedItems([]); // Add this
   };
 
   return (
@@ -1877,17 +2333,40 @@ const ItemGRN = () => {
                   <label className="form-label">
                     Supplier<span className="required">*</span>
                   </label>
-                  <div className="input-wrapper">
-                    <input
-                      type="text"
+                  <div className="select-wrapper">
+                    <select
                       name="supplier"
                       value={formData.supplier}
                       onChange={handleChange}
-                      className="form-input"
-                      placeholder="Enter supplier"
+                      className="form-select"
                       required
-                    />
+                    >
+                      <option value="">Select Supplier</option>
+                      {dropdownOptions.suppliers &&
+                        dropdownOptions.suppliers.map((supplier) => (
+                          <option
+                            key={supplier.id}
+                            value={supplier.supplierCode || supplier.id}
+                          >
+                            {supplier.supplierCode} - {supplier.name}
+                            {supplier.telephone && ` (${supplier.telephone})`}
+                          </option>
+                        ))}
+                    </select>
+                    <div className="select-arrow"></div>
                   </div>
+
+                  {/* Show selected supplier info */}
+                  {formData.supplier && (
+                    <div
+                      className="field-info"
+                      style={{
+                        fontSize: "12px",
+                        color: "#666",
+                        marginTop: "5px",
+                      }}
+                    ></div>
+                  )}
                 </div>
 
                 <div className="form-group">
@@ -2019,6 +2498,7 @@ const ItemGRN = () => {
                       id={`file-${file.id}`}
                       onChange={(e) => handleFileChange(e, file.id)}
                       style={{ display: "none" }}
+                      accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" // Accept images and documents
                     />
                     <button
                       type="button"
@@ -2030,11 +2510,48 @@ const ItemGRN = () => {
                       Choose file
                     </button>
                     <span className="file-name">{file.fileName}</span>
+
+                    {/* Image Preview */}
+                    {file.previewUrl && file.isImage && (
+                      <div className="file-preview-container">
+                        <div
+                          className="image-preview-thumbnail"
+                          onClick={() => window.open(file.previewUrl, "_blank")}
+                          style={{ cursor: "pointer" }}
+                          title="Click to view full size"
+                        >
+                          <img
+                            src={file.previewUrl}
+                            alt={`Preview ${file.fileName}`}
+                            className="preview-image"
+                            style={{ height: "100px" }}
+                          />
+                          <div className="preview-overlay"></div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Non-image file indicator */}
+                    {file.file && !file.isImage && (
+                      <div className="file-type-indicator">
+                        📄 {file.fileType || "Document"}
+                      </div>
+                    )}
+
                     {files.length > 1 && (
                       <button
                         type="button"
                         className="remove-file-btn"
-                        onClick={() => removeFileUpload(file.id)}
+                        onClick={() => {
+                          // Clean up object URL before removing
+                          if (
+                            file.previewUrl &&
+                            file.previewUrl.startsWith("blob:")
+                          ) {
+                            URL.revokeObjectURL(file.previewUrl);
+                          }
+                          removeFileUpload(file.id);
+                        }}
                         title="Remove file"
                       >
                         ×
@@ -2058,70 +2575,196 @@ const ItemGRN = () => {
             <div className="form-section">
               <h2 className="form-section-title">Item Images</h2>
 
-              {isEditingMode && selectedItemImages.hasImages ? (
+              {isViewingFixedAsset && selectedItem ? (
                 <div className="image-preview-section">
+                  <div className="image-preview-header">
+                    <div>
+                      {selectedItemImages.hasImages
+                        ? `Found ${selectedItemImages.imageCount} image(s)`
+                        : "Checking for images..."}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-action btn-small"
+                      onClick={() => {
+                        console.log("Reloading images for:", selectedItem);
+                        loadFixedAssetImages(selectedItem);
+                      }}
+                      style={{
+                        marginLeft: "auto",
+                        backgroundColor: "#2196F3",
+                        fontSize: "12px",
+                        padding: "5px 10px",
+                      }}
+                    >
+                      🔄 Reload
+                    </button>
+                  </div>
+
                   <div className="image-grid">
                     {[1, 2, 3, 4].map((imageNum) => {
-                      if (selectedItemImages.imagePaths[`Item${imageNum}Pic`]) {
-                        const imageUrl = getImageUrl(
-                          selectedItemSerials[0] || selectedItem?.ItemSerial,
-                          imageNum
-                        );
-                        const previewKey = `${
-                          selectedItemSerials[0] || selectedItem?.ItemSerial
-                        }_${imageNum}`;
+                      const imageField = `Item${imageNum}Pic`;
+                      const hasImage =
+                        selectedItemImages.imagePaths &&
+                        selectedItemImages.imagePaths[imageField];
+
+                      if (hasImage) {
+                        const previewKey = `${selectedItem?.ItemSerial}_${imageNum}`;
                         const previewUrl = imagePreviews[previewKey];
+                        const imagePath =
+                          selectedItemImages.imagePaths[imageField];
+
+                        console.log(`Image ${imageNum}:`, {
+                          hasImage: true,
+                          previewKey,
+                          hasPreviewUrl: !!previewUrl,
+                          imagePath,
+                        });
 
                         return (
                           <div key={imageNum} className="image-preview-item">
                             <div
                               className="image-thumbnail"
                               onClick={() => openImageModal(imageNum - 1)}
-                              style={{ cursor: "pointer" }}
+                              style={{
+                                cursor: "pointer",
+                                position: "relative",
+                                overflow: "hidden",
+                              }}
+                              title={`Image ${imageNum}\nPath: ${imagePath}`}
                             >
                               {previewUrl ? (
                                 <img
                                   src={previewUrl}
                                   alt={`Item Image ${imageNum}`}
                                   className="thumbnail-image"
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: "cover",
+                                    transition: "transform 0.3s ease",
+                                  }}
+                                  onLoad={() =>
+                                    console.log(
+                                      `Image ${imageNum} loaded successfully`
+                                    )
+                                  }
                                   onError={(e) => {
-                                    e.target.src = "/placeholder-image.jpg";
+                                    console.error(
+                                      `Error loading image ${imageNum}`
+                                    );
+                                    e.target.style.display = "none";
+                                    // Show fallback
+                                    const container = e.target.parentElement;
+                                    container.innerHTML = "";
+                                    container.appendChild(
+                                      <FallbackImage imageNumber={imageNum} />
+                                    );
                                   }}
                                 />
                               ) : (
-                                <div className="image-loading">
-                                  Loading Image {imageNum}...
-                                  <button
-                                    type="button"
-                                    className="btn-action btn-small"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      loadImagePreview(
-                                        selectedItemSerials[0],
-                                        imageNum
-                                      );
+                                <div
+                                  className="image-loading"
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    backgroundColor: "#f8f9fa",
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      width: "30px",
+                                      height: "30px",
+                                      border: "3px solid #f3f3f3",
+                                      borderTop: "3px solid #3498db",
+                                      borderRadius: "50%",
+                                      animation: "spin 1s linear infinite",
+                                      marginBottom: "10px",
                                     }}
-                                  >
-                                    Load
-                                  </button>
+                                  ></div>
+                                  <div>Loading...</div>
                                 </div>
                               )}
                             </div>
-                            <div className="image-label">Image {imageNum}</div>
+                            <div className="image-label">
+                              Image {imageNum}
+                              {imagePath && (
+                                <div
+                                  className="image-path"
+                                  style={{
+                                    fontSize: "10px",
+                                    color: "#666",
+                                    marginTop: "2px",
+                                    wordBreak: "break-all",
+                                    fontFamily: "monospace",
+                                  }}
+                                >
+                                  {imagePath}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         );
                       }
-                      return null;
+
+                      // Show placeholder for images that don't exist
+                      return (
+                        <div key={imageNum} className="image-preview-item">
+                          <div
+                            className="image-thumbnail"
+                            style={{
+                              cursor: "not-allowed",
+                              opacity: 0.5,
+                            }}
+                            title={`No image ${imageNum} uploaded`}
+                          >
+                            <FallbackImage imageNumber={imageNum} />
+                          </div>
+                          <div className="image-label">
+                            Image {imageNum}
+                            <div
+                              style={{
+                                fontSize: "10px",
+                                color: "#999",
+                                marginTop: "2px",
+                              }}
+                            >
+                              Not uploaded
+                            </div>
+                          </div>
+                        </div>
+                      );
                     })}
                   </div>
 
-                  <div className="image-actions"></div>
+                  <div className="image-actions">
+                    {isViewingFixedAsset && (
+                      <div className="image-info-text">
+                        Fixed Asset Images (View Only)
+                        <div
+                          style={{
+                            fontSize: "11px",
+                            color: "#666",
+                            marginTop: "5px",
+                          }}
+                        >
+                          Item Serial: {selectedItem?.ItemSerial}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              ) : isEditingMode ? (
+              ) : isViewingFixedAsset ? (
+                <div className="no-images-message">No item selected</div>
+              ) : (
                 <div className="no-images-message">
-                  No images uploaded for this item
+                  Select an item from Browse to view images
                 </div>
-              ) : null}
+              )}
             </div>
 
             <div className="paired-section">
@@ -2411,6 +3054,7 @@ const ItemGRN = () => {
                           <select
                             value={row.center}
                             onChange={(e) =>
+                              !isViewingFixedAsset &&
                               handleAssetChange(
                                 row.id,
                                 "center",
@@ -2418,6 +3062,7 @@ const ItemGRN = () => {
                               )
                             }
                             className="form-select table-select"
+                            disabled={isViewingFixedAsset}
                           >
                             <option value="">Select Center</option>
                             {dropdownOptions.centers.map((center) => (
@@ -2435,6 +3080,7 @@ const ItemGRN = () => {
                           <select
                             value={row.location}
                             onChange={(e) =>
+                              !isViewingFixedAsset &&
                               handleAssetChange(
                                 row.id,
                                 "location",
@@ -2442,7 +3088,7 @@ const ItemGRN = () => {
                               )
                             }
                             className="form-select table-select"
-                            disabled={!row.center}
+                            disabled={isViewingFixedAsset || !row.center}
                           >
                             <option value="">Select Location</option>
                             {getFilteredLocations(row.center).map(
@@ -2462,6 +3108,7 @@ const ItemGRN = () => {
                           <select
                             value={row.department}
                             onChange={(e) =>
+                              !isViewingFixedAsset &&
                               handleAssetChange(
                                 row.id,
                                 "department",
@@ -2469,45 +3116,19 @@ const ItemGRN = () => {
                               )
                             }
                             className="form-select table-select"
-                            disabled={!row.center || !row.location}
+                            disabled={
+                              isViewingFixedAsset ||
+                              !row.center ||
+                              !row.location
+                            }
                           >
                             <option value="">Select Department</option>
                             {(() => {
-                              // Get filtered departments - ensure it's always an array
                               const departments =
                                 getFilteredDepartments(
                                   row.center,
                                   row.location
                                 ) || [];
-
-                              // If no departments found and we have a department ID set
-                              if (departments.length === 0 && row.department) {
-                                // Try to find the department in all available departments
-                                const allDepts = [
-                                  ...dropdownOptions.departments,
-                                  ...filteredDepartments,
-                                ];
-                                const foundDept = allDepts.find(
-                                  (d) => d.id === row.department
-                                );
-
-                                if (foundDept) {
-                                  // Return the found department plus an empty option
-                                  return [
-                                    <option
-                                      key={foundDept.id}
-                                      value={foundDept.id}
-                                    >
-                                      {foundDept.name} ({foundDept.id})
-                                    </option>,
-                                    <option key="empty" value="">
-                                      Select Department
-                                    </option>,
-                                  ];
-                                }
-                              }
-
-                              // Map departments to options
                               return departments.map((dept) => (
                                 <option key={dept.id} value={dept.id}>
                                   {dept.name} ({dept.id})
@@ -2517,22 +3138,14 @@ const ItemGRN = () => {
                           </select>
                           <div className="select-arrow"></div>
                         </div>
-                        {row.department && (
-                          <div
-                            className="field-info"
-                            style={{
-                              fontSize: "12px",
-                              color: "#666",
-                              marginTop: "5px",
-                            }}
-                          ></div>
-                        )}
                       </td>
+
                       <td>
                         <div className="select-wrapper">
                           <select
                             value={row.employee}
                             onChange={(e) =>
+                              !isViewingFixedAsset &&
                               handleAssetChange(
                                 row.id,
                                 "employee",
@@ -2540,7 +3153,7 @@ const ItemGRN = () => {
                               )
                             }
                             className="form-select table-select"
-                            disabled={!row.department}
+                            disabled={isViewingFixedAsset || !row.department}
                           >
                             <option value="">Select Employee</option>
                             {getFilteredEmployees(row.department).map(
@@ -2554,11 +3167,13 @@ const ItemGRN = () => {
                           <div className="select-arrow"></div>
                         </div>
                       </td>
+
                       <td>
                         <input
                           type="text"
                           value={row.serialNo}
                           onChange={(e) =>
+                            !isViewingFixedAsset &&
                             handleAssetChange(
                               row.id,
                               "serialNo",
@@ -2567,13 +3182,16 @@ const ItemGRN = () => {
                           }
                           className="form-input table-input"
                           placeholder="Serial No"
+                          readOnly={isViewingFixedAsset}
                         />
                       </td>
+
                       <td>
                         <input
                           type="text"
                           value={row.bookNoLocalId}
                           onChange={(e) =>
+                            !isViewingFixedAsset &&
                             handleAssetChange(
                               row.id,
                               "bookNoLocalId",
@@ -2582,13 +3200,16 @@ const ItemGRN = () => {
                           }
                           className="form-input table-input"
                           placeholder="Book No/Local ID"
+                          readOnly={isViewingFixedAsset}
                         />
                       </td>
+
                       <td>
                         <input
                           type="text"
                           value={row.barcodeNo}
                           onChange={(e) =>
+                            !isViewingFixedAsset &&
                             handleAssetChange(
                               row.id,
                               "barcodeNo",
@@ -2597,55 +3218,63 @@ const ItemGRN = () => {
                           }
                           className="form-input table-input"
                           placeholder="Barcode No"
+                          readOnly={isViewingFixedAsset}
                         />
                       </td>
+
                       <td>
                         <div className="table-actions">
-                          {index === assetRows.length - 1 && (
-                            <button
-                              type="button"
-                              className="btn-action btn-add-small"
-                              onClick={addAssetRow}
-                              title={
-                                formData.replicate && assetRows.length === 1
-                                  ? `Create ${formData.qty || 0} replicate rows`
-                                  : "Add Row"
-                              }
-                              style={
-                                formData.replicate && assetRows.length === 1
-                                  ? { backgroundColor: "#4CAF50" }
-                                  : {}
-                              }
-                            >
-                              <span className="btn-icon">+</span>
-                              {formData.replicate && assetRows.length === 1 && (
-                                <span
-                                  style={{
-                                    marginLeft: "5px",
-                                    fontSize: "12px",
-                                  }}
-                                >
-                                  Create {formData.qty || 0} Rows
-                                </span>
-                              )}
-                            </button>
-                          )}
+                          {!isViewingFixedAsset &&
+                            index === assetRows.length - 1 && (
+                              <button
+                                type="button"
+                                className="btn-action btn-add-small"
+                                onClick={addAssetRow}
+                                title={
+                                  formData.replicate && assetRows.length === 1
+                                    ? `Create ${
+                                        formData.qty || 0
+                                      } replicate rows`
+                                    : "Add Row"
+                                }
+                                style={
+                                  formData.replicate && assetRows.length === 1
+                                    ? { backgroundColor: "#4CAF50" }
+                                    : {}
+                                }
+                              >
+                                <span className="btn-icon">+</span>
+                                {formData.replicate &&
+                                  assetRows.length === 1 && (
+                                    <span
+                                      style={{
+                                        marginLeft: "5px",
+                                        fontSize: "12px",
+                                      }}
+                                    >
+                                      Create {formData.qty || 0} Rows
+                                    </span>
+                                  )}
+                              </button>
+                            )}
 
-                          {!formData.replicate && assetRows.length > 1 && (
-                            <button
-                              type="button"
-                              className="btn-action btn-remove"
-                              onClick={() => removeAssetRow(row.id)}
-                              title="Remove Row"
-                            >
-                              <span className="btn-icon">×</span>
-                            </button>
-                          )}
+                          {!isViewingFixedAsset &&
+                            !formData.replicate &&
+                            assetRows.length > 1 && (
+                              <button
+                                type="button"
+                                className="btn-action btn-remove"
+                                onClick={() => removeAssetRow(row.id)}
+                                title="Remove Row"
+                              >
+                                <span className="btn-icon">×</span>
+                              </button>
+                            )}
 
-                          {formData.replicate && assetRows.length > 1 && (
+                          {isViewingFixedAsset && (
                             <span
-                              className="replicate-info"
-                              title="Replicate rows - cannot modify individually"
+                              className="view-only-info"
+                              title="View Only - Fixed Asset"
                               style={{
                                 color: "#666",
                                 fontSize: "12px",
@@ -2655,9 +3284,28 @@ const ItemGRN = () => {
                                 borderRadius: "4px",
                               }}
                             >
-                              Replicate
+                              View Only
                             </span>
                           )}
+
+                          {!isViewingFixedAsset &&
+                            formData.replicate &&
+                            assetRows.length > 1 && (
+                              <span
+                                className="replicate-info"
+                                title="Replicate rows - cannot modify individually"
+                                style={{
+                                  color: "#666",
+                                  fontSize: "12px",
+                                  cursor: "help",
+                                  padding: "4px 8px",
+                                  backgroundColor: "#f5f5f5",
+                                  borderRadius: "4px",
+                                }}
+                              >
+                                Replicate
+                              </span>
+                            )}
                         </div>
                       </td>
                     </tr>
@@ -2670,35 +3318,59 @@ const ItemGRN = () => {
           {/* Form Actions */}
           <div className="form-actions-section">
             <div className="action-buttons">
-              <button
-                className="btn-action btn-save"
-                type="submit"
-                style={{
-                  backgroundColor: isEditingMode ? "#2196F3" : "#019159",
-                }}
-              >
-                <span className="btn-icon">✓</span>
-                {isEditingMode ? "UPDATE" : "SAVE"}
-              </button>
-
-              {isEditingMode && (
-                <button
-                  className="btn-action"
-                  type="button"
-                  style={{ backgroundColor: "#FF9800" }}
-                  onClick={() => {
-                    if (
-                      window.confirm(
-                        "Are you sure you want to delete this item?"
-                      )
-                    ) {
-                      handleDelete();
-                    }
+              {isViewingFixedAsset ? (
+                <div
+                  className="view-mode-indicator"
+                  style={{
+                    backgroundColor: "transparent",
+                    color: "black",
+                    padding: "20px 20px",
+                    borderRadius: "4px",
+                    fontWeight: "bold",
                   }}
                 >
-                  <span className="btn-icon">🗑️</span>
-                  DELETE
-                </button>
+                  VIEW MODE
+                </div>
+              ) : (
+                <>
+                  <button
+                    className="btn-action btn-save"
+                    type="submit"
+                    style={{
+                      backgroundColor: isEditingMode ? "#2196F3" : "#019159",
+                    }}
+                  >
+                    <span className="btn-icon">✓</span>
+                    {isEditingMode ? "UPDATE" : "SAVE"}
+                  </button>
+                  {isEditingMode && (
+                    <button
+                      className="btn-action"
+                      type="button"
+                      style={{ backgroundColor: "#FF9800" }}
+                      onClick={() => {
+                        Swal.fire({
+                          title: "Delete Confirmation",
+                          html: `Are you sure you want to delete <strong>GRN ${formData.grnNo}</strong>?`,
+                          icon: "warning",
+                          showCancelButton: true,
+                          confirmButtonColor: "#d33",
+                          cancelButtonColor: "#3085d6",
+                          confirmButtonText: "Yes, delete it!",
+                          cancelButtonText: "Cancel",
+                          reverseButtons: true,
+                        }).then((result) => {
+                          if (result.isConfirmed) {
+                            handleDelete();
+                          }
+                        });
+                      }}
+                    >
+                      <span className="btn-icon">🗑️</span>
+                      DELETE
+                    </button>
+                  )}
+                </>
               )}
 
               <button
@@ -2715,7 +3387,35 @@ const ItemGRN = () => {
                 className="btn-action btn-cancel"
                 type="button"
                 style={{ backgroundColor: "#e75933" }}
-                onClick={handleReset}
+                onClick={() => {
+                  if (isEditingMode || isViewingFixedAsset || formData.grnNo) {
+                    Swal.fire({
+                      title: "Reset Form",
+                      text: "Are you sure you want to reset the form? All unsaved changes will be lost.",
+                      icon: "warning",
+                      showCancelButton: true,
+                      confirmButtonColor: "#e75933",
+                      cancelButtonColor: "#3085d6",
+                      confirmButtonText: "Yes, reset it!",
+                      cancelButtonText: "Cancel",
+                      reverseButtons: true,
+                    }).then((result) => {
+                      if (result.isConfirmed) {
+                        handleReset();
+                        Swal.fire({
+                          icon: "success",
+                          title: "Form Reset",
+                          text: "Form has been reset successfully.",
+                          confirmButtonColor: "#019159",
+                          timer: 1500,
+                          showConfirmButton: false,
+                        });
+                      }
+                    });
+                  } else {
+                    handleReset();
+                  }
+                }}
               >
                 <span className="btn-icon">✕</span>
                 CANCEL
@@ -2725,7 +3425,7 @@ const ItemGRN = () => {
             <div className="form-info">
               <p className="info-text">
                 <span className="required">*</span> Required fields
-                {isEditingMode && (
+                {isEditingMode && !isViewingFixedAsset && (
                   <span
                     style={{
                       marginLeft: "20px",
@@ -2736,18 +3436,29 @@ const ItemGRN = () => {
                     EDITING MODE - GRN: {formData.grnNo}
                   </span>
                 )}
+                {isViewingFixedAsset && (
+                  <span
+                    style={{
+                      marginLeft: "20px",
+                      color: "#6c757d",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    VIEW MODE - Fixed Asset (GRN: {formData.grnNo})
+                  </span>
+                )}
               </p>
             </div>
           </div>
         </form>
       </div>
-
       {/* Browse Modal */}
+
       {showBrowseModal && (
         <div className="modal-overlay" onClick={closeBrowseModal}>
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="modal-title">Browse Item GRN Records</h2>
+              <h2 className="modal-title">Browse Fixed Assets</h2>
               <button className="modal-close-btn" onClick={closeBrowseModal}>
                 ×
               </button>
@@ -2760,7 +3471,7 @@ const ItemGRN = () => {
                   <input
                     type="text"
                     className="search-input"
-                    placeholder="Search by Item Name, Invoice No, GRN No, Serial No, Barcode No, PONo, Manufacture..."
+                    placeholder="Search by Item Code, Item Name, GRN No, Serial No, Barcode No, Center, Department..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     onKeyPress={handleKeyPress}
@@ -2788,7 +3499,7 @@ const ItemGRN = () => {
                 <div className="total-records">Total Records: {totalItems}</div>
               </div>
 
-              {/* Results Table */}
+              {/* Results Table - Updated for fixed_asset_master */}
               <div className="results-table-container">
                 {loading ? (
                   <div className="loading-spinner">Loading...</div>
@@ -2796,39 +3507,63 @@ const ItemGRN = () => {
                   <table className="results-table">
                     <thead>
                       <tr>
-                        <th>Item Serial</th>
+                        <th>Item Code</th>
+                        <th>Item Name</th>
+                        <th>GRN No</th>
                         <th>Center</th>
                         <th>Department</th>
                         <th>Invoice No</th>
-                        <th>Item Name</th>
-                        <th>GRN No</th>
                         <th>Barcode No</th>
                         <th>Book No</th>
                         <th>Serial No</th>
                         <th>PO No</th>
+                        <th>Status</th>
                         <th>Created Date</th>
                         <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {searchResults.length > 0 ? (
-                        searchResults.map((item) => (
+                        searchResults.map((item, index) => (
                           <tr
-                            key={item.id || item.ItemSerial || index}
+                            key={item.ItemSerial || index}
                             className="result-row"
                             onClick={() => handleRowClick(item)}
                             style={{ cursor: "pointer" }}
                           >
-                            <td>{item.ItemSerial || "N/A"}</td>
-                            <td>{item.StationId || "N/A"}</td>
-                            <td>{item.DepartmentSerial || "N/A"}</td>
-                            <td>{item.InvoiceNo || "N/A"}</td>
+                            <td>{item.ItemCode || "N/A"}</td>
                             <td>{item.ItemName || "N/A"}</td>
                             <td>{item.GrnNo || "N/A"}</td>
+                            <td>
+                              {item.center_name ||
+                                item.Center ||
+                                item.StationId ||
+                                "N/A"}
+                            </td>
+                            <td>
+                              {item.department_name ||
+                                item.Department ||
+                                item.DepartmentSerial ||
+                                "N/A"}
+                            </td>
+                            <td>{item.InvoiceNo || "N/A"}</td>
                             <td>{item.BarcodeNo || "N/A"}</td>
                             <td>{item.BookNo || "N/A"}</td>
                             <td>{item.SerialNo || "N/A"}</td>
                             <td>{item.PONo || "N/A"}</td>
+                            <td>
+                              <span
+                                className={`status-badge status-${
+                                  item.Status || 0
+                                }`}
+                              >
+                                {item.Status === 1
+                                  ? "Approved"
+                                  : item.Status === 0
+                                  ? "Rejected"
+                                  : "Pending"}
+                              </span>
+                            </td>
                             <td>
                               {formatDateForDisplay(item.CreatedAt) || "N/A"}
                             </td>
@@ -2852,7 +3587,7 @@ const ItemGRN = () => {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan="12" className="no-results">
+                          <td colSpan="13" className="no-results">
                             No records found
                           </td>
                         </tr>
@@ -2873,7 +3608,8 @@ const ItemGRN = () => {
                     ← Previous
                   </button>
                   <span className="page-info">
-                    Page {currentPage} of {totalPages}
+                    Page {currentPage} of {totalPages} (Showing{" "}
+                    {searchResults.length} of {totalItems} records)
                   </span>
                   <button
                     className="pagination-btn"
@@ -2898,6 +3634,18 @@ const ItemGRN = () => {
           >
             <div className="modal-header">
               <h2 className="modal-title">📸 Item Images</h2>
+              {isViewingFixedAsset && (
+                <span
+                  style={{
+                    fontSize: "14px",
+                    color: "#ddd",
+                    marginLeft: "10px",
+                    fontStyle: "italic",
+                  }}
+                >
+                  (Fixed Asset - View Only)
+                </span>
+              )}
               <button className="modal-close-btn" onClick={closeImageModal}>
                 ×
               </button>
@@ -2906,51 +3654,100 @@ const ItemGRN = () => {
             <div className="modal-body">
               {loadingImage ? (
                 <div className="modal-image-container">
-                  <div className="loading-spinner"></div>
+                  <div className="loading-spinner">Loading image...</div>
                 </div>
               ) : (
                 <>
-                  <div className="modal-image-container">
-                    {[1, 2, 3, 4].map((imageNum, index) => {
-                      if (selectedItemImages.imagePaths[`Item${imageNum}Pic`]) {
-                        const imageUrl = getImageUrl(
-                          selectedItemSerials[0] || selectedItem?.ItemSerial,
-                          imageNum
-                        );
+                  {/* Main Image Display - ADD THIS SECTION */}
+                  <div className="main-image-container">
+                    <div className="main-image-wrapper">
+                      {(() => {
+                        const currentImageNum = currentImageIndex + 1;
+                        const imageField = `Item${currentImageNum}Pic`;
+
+                        if (selectedItemImages.imagePaths[imageField]) {
+                          const previewKey = `${
+                            selectedItemSerials[0] || selectedItem?.ItemSerial
+                          }_${currentImageNum}`;
+                          const previewUrl = imagePreviews[previewKey];
+
+                          if (previewUrl) {
+                            return (
+                              <img
+                                src={previewUrl}
+                                alt={`Item Image ${currentImageNum}`}
+                                className="main-image"
+                                onLoad={() => setLoadingImage(false)}
+                                onError={(e) => {
+                                  console.error(
+                                    `Error loading image ${currentImageNum}:`,
+                                    e
+                                  );
+                                  setLoadingImage(false);
+                                  e.target.src = "/placeholder-image.jpg";
+                                }}
+                              />
+                            );
+                          } else {
+                            // Try to load the image if preview is not available
+                            setTimeout(() => {
+                              if (isViewingFixedAsset && selectedItem) {
+                                loadFixedAssetImagePreview(
+                                  selectedItem,
+                                  currentImageNum
+                                );
+                              } else if (selectedItemSerials[0]) {
+                                loadImagePreview(
+                                  selectedItemSerials[0],
+                                  currentImageNum
+                                );
+                              }
+                            }, 100);
+
+                            return (
+                              <div className="image-loading-placeholder">
+                                <div className="loading-text">
+                                  Loading Image {currentImageNum}...
+                                </div>
+                                <button
+                                  type="button"
+                                  className="btn-action btn-small"
+                                  onClick={() => {
+                                    if (isViewingFixedAsset && selectedItem) {
+                                      loadFixedAssetImagePreview(
+                                        selectedItem,
+                                        currentImageNum
+                                      );
+                                    } else if (selectedItemSerials[0]) {
+                                      loadImagePreview(
+                                        selectedItemSerials[0],
+                                        currentImageNum
+                                      );
+                                    }
+                                  }}
+                                  style={{ marginTop: "10px" }}
+                                >
+                                  Retry Load
+                                </button>
+                              </div>
+                            );
+                          }
+                        }
 
                         return (
-                          <div
-                            key={imageNum}
-                            className="image-slide"
-                            style={{
-                              display:
-                                index === currentImageIndex ? "block" : "none",
-                            }}
-                          >
-                            <img
-                              src={imageUrl}
-                              alt={`Item Image ${imageNum}`}
-                              className="modal-image"
-                              onLoad={() => setLoadingImage(false)}
-                              onError={(e) => {
-                                console.error(
-                                  `Error loading image ${imageNum}`
-                                );
-                                e.target.src = "/placeholder-image.jpg";
-                                setLoadingImage(false);
-                              }}
-                            />
+                          <div className="no-image-available">
+                            Image {currentImageNum} not available
                           </div>
                         );
-                      }
-                      return null;
-                    })}
+                      })()}
+                    </div>
                   </div>
 
                   {/* Thumbnail Navigation */}
                   <div className="image-thumbnails-row">
                     {[1, 2, 3, 4].map((imageNum, index) => {
-                      if (selectedItemImages.imagePaths[`Item${imageNum}Pic`]) {
+                      const imageField = `Item${imageNum}Pic`;
+                      if (selectedItemImages.imagePaths[imageField]) {
                         const previewKey = `${
                           selectedItemSerials[0] || selectedItem?.ItemSerial
                         }_${imageNum}`;
@@ -3009,6 +3806,7 @@ const ItemGRN = () => {
                 <div className="image-counter">
                   Image {currentImageIndex + 1} of{" "}
                   {selectedItemImages.imageCount}
+                  {isViewingFixedAsset && " (Fixed Asset)"}
                 </div>
 
                 <button
@@ -3030,7 +3828,6 @@ const ItemGRN = () => {
           </div>
         </div>
       )}
-
       {/* Add CSS for modal */}
       <style jsx>{`
         .modal-overlay {
@@ -3045,6 +3842,24 @@ const ItemGRN = () => {
           align-items: center;
           z-index: 1000;
           padding: 20px;
+        }
+
+        .image-info-text {
+          text-align: center;
+          font-size: 12px;
+          color: #666;
+          margin-top: 10px;
+          padding: 5px;
+          background-color: #f8f9fa;
+          border-radius: 4px;
+        }
+
+        .image-filename {
+          word-break: break-all;
+          font-size: 11px;
+          color: #888;
+          margin-top: 5px;
+          padding: 0 10px;
         }
 
         .modal-container {
@@ -3420,6 +4235,679 @@ const ItemGRN = () => {
           .image-slide {
             width: 100%;
             text-align: center;
+          }
+
+          .related-items-summary {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+          }
+
+          .summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #dee2e6;
+          }
+
+          .summary-header h3 {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 1.4rem;
+          }
+
+          .summary-icon {
+            margin-right: 10px;
+          }
+
+          .item-count {
+            margin-left: 10px;
+            font-size: 1rem;
+            color: #6c757d;
+            font-weight: normal;
+          }
+
+          .summary-stats {
+            display: flex;
+            gap: 20px;
+          }
+
+          .stat-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 8px 15px;
+            background-color: white;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+          }
+
+          .stat-label {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 4px;
+          }
+
+          .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+          }
+
+          .stat-value.total {
+            color: #007bff;
+          }
+
+          .stat-value.approved {
+            color: #28a745;
+          }
+
+          .stat-value.rejected {
+            color: #dc3545;
+          }
+
+          .related-items-table {
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+          }
+
+          .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+          }
+
+          .status-1 {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+          }
+
+          .status-0 {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+          }
+
+          .view-mode-indicator {
+            background-color: #6c757d !important;
+            cursor: not-allowed;
+          }
+
+          .form-input:read-only,
+          .form-select:disabled,
+          .form-textarea:read-only {
+            background-color: #f8f9fa;
+            cursor: not-allowed;
+            opacity: 0.8;
+          }
+          /* Image Modal Styles */
+          .image-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            padding: 20px;
+          }
+
+          .image-modal-content {
+            background-color: #2c3e50;
+            border-radius: 12px;
+            width: 90%;
+            height: 90%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+          }
+
+          .image-modal-content .modal-header {
+            background-color: rgba(0, 0, 0, 0.3);
+            padding: 15px 20px;
+          }
+
+          .modal-body {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 0;
+            overflow: hidden;
+          }
+
+          .main-image-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background-color: #1a252f;
+            overflow: hidden;
+          }
+
+          .main-image-wrapper {
+            max-width: 100%;
+            max-height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .main-image {
+            max-width: 100%;
+            max-height: 80vh;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5);
+            background-color: white;
+            padding: 5px;
+          }
+
+          .image-loading-placeholder {
+            text-align: center;
+            color: #ecf0f1;
+            padding: 40px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            min-width: 300px;
+            min-height: 300px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .loading-text {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #bdc3c7;
+          }
+
+          .no-image-available {
+            text-align: center;
+            color: #95a5a6;
+            font-style: italic;
+            padding: 40px;
+            background-color: rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            min-width: 300px;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+
+          .image-thumbnails-row {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            padding: 20px;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+          }
+
+          .thumbnail-item {
+            width: 80px;
+            height: 80px;
+            border-radius: 6px;
+            overflow: hidden;
+            cursor: pointer;
+            border: 3px solid transparent;
+            transition: all 0.3s ease;
+            background-color: #34495e;
+          }
+
+          .thumbnail-item:hover {
+            border-color: #3498db;
+            transform: translateY(-2px);
+          }
+
+          .thumbnail-item.active {
+            border-color: #2ecc71;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(46, 204, 113, 0.3);
+          }
+
+          .thumbnail-img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+
+          .thumbnail-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #34495e, #2c3e50);
+            color: #ecf0f1;
+            font-weight: bold;
+            font-size: 24px;
+          }
+
+          .modal-navigation {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: rgba(0, 0, 0, 0.4);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+          }
+
+          .nav-btn {
+            padding: 10px 20px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            transition: background-color 0.2s;
+            min-width: 120px;
+          }
+
+          .nav-btn:hover:not(:disabled) {
+            background-color: #2980b9;
+          }
+
+          .nav-btn:disabled {
+            background-color: #7f8c8d;
+            cursor: not-allowed;
+            opacity: 0.7;
+          }
+
+          .image-counter {
+            font-weight: 600;
+            color: #ecf0f1;
+            font-size: 16px;
+          }
+
+          /* Close button styling */
+          .image-modal-content .modal-close-btn {
+            background-color: rgba(231, 76, 60, 0.8);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+          }
+
+          .image-modal-content .modal-close-btn:hover {
+            background-color: #e74c3c;
+          }
+
+          /* Responsive adjustments for image modal */
+          @media (max-width: 768px) {
+            .image-modal-content {
+              width: 95%;
+              height: 95%;
+            }
+
+            .main-image {
+              max-height: 60vh;
+            }
+
+            .thumbnail-item {
+              width: 60px;
+              height: 60px;
+            }
+
+            .nav-btn {
+              padding: 8px 15px;
+              min-width: 100px;
+              font-size: 12px;
+            }
+
+            .image-counter {
+              font-size: 14px;
+            }
+          }
+          /* Image Preview Styles */
+          .image-preview-section {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+          }
+
+          .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+          }
+
+          .image-preview-item {
+            text-align: center;
+            transition: transform 0.2s;
+          }
+
+          .image-preview-item:hover {
+            transform: translateY(-5px);
+          }
+
+          .image-thumbnail {
+            width: 150px;
+            height: 150px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #dee2e6;
+            background-color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 10px;
+            cursor: pointer;
+            transition: border-color 0.2s;
+          }
+
+          .image-thumbnail:hover {
+            border-color: #4caf50;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+          }
+
+          .thumbnail-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+
+          .image-label {
+            font-size: 14px;
+            color: #495057;
+            font-weight: 500;
+          }
+
+          .no-images-message {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px dashed #dee2e6;
+          }
+          /* Image Preview Header */
+          .image-preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            font-weight: 500;
+          }
+
+          /* Loading spinner */
+          .loading-spinner-small {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+          }
+
+          @keyframes spin {
+            0% {
+              transform: rotate(0deg);
+            }
+            100% {
+              transform: rotate(360deg);
+            }
+          }
+
+          /* Image loading state */
+          .image-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+          }
+
+          .image-loading button {
+            font-size: 12px;
+            padding: 4px 8px;
+          }
+
+          /* Image path */
+          .image-path {
+            font-family: monospace;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+          }
+
+          /* Debug info */
+          .image-debug-info {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+          }
+
+          .image-debug-info div {
+            margin-bottom: 5px;
+          }
+
+          /* No images message */
+          .no-images-message {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px dashed #dee2e6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+          }
+
+          .no-images-message button {
+            font-size: 14px;
+            padding: 6px 12px;
+          }
+
+          @keyframes spin {
+            0% {
+              transform: rotate(0deg);
+            }
+            100% {
+              transform: rotate(360deg);
+            }
+          }
+
+          .image-preview-section {
+            margin: 20px 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+            transition: all 0.3s ease;
+          }
+
+          .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+          }
+
+          .image-preview-item {
+            text-align: center;
+            transition: transform 0.2s ease;
+          }
+
+          .image-preview-item:hover {
+            transform: translateY(-5px);
+          }
+
+          .image-thumbnail {
+            width: 150px;
+            height: 150px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid #dee2e6;
+            background-color: white;
+            margin: 0 auto 10px;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+          }
+
+          .image-thumbnail:hover {
+            border-color: #4caf50;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+          }
+
+          .thumbnail-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s ease;
+          }
+
+          .thumbnail-image:hover {
+            transform: scale(1.05);
+          }
+
+          .image-label {
+            font-size: 14px;
+            color: #495057;
+            font-weight: 500;
+            word-break: break-word;
+          }
+
+          .no-images-message {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-style: italic;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px dashed #dee2e6;
+          }
+
+          .image-preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            font-weight: 500;
+          }
+
+          .image-info-text {
+            text-align: center;
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            border: 1px solid #dee2e6;
+          }
+          .file-preview-container {
+            margin-top: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+          }
+
+          .image-preview-thumbnail {
+            position: relative;
+            width: 100px;
+            height: 100px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 2px solid #dee2e6;
+            background-color: #f8f9fa;
+          }
+
+          .preview-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+          }
+
+          .preview-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+          }
+
+          .image-preview-thumbnail:hover .preview-overlay {
+            opacity: 1;
+          }
+
+          .preview-icon {
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+          }
+
+          .file-type-indicator {
+            font-size: 12px;
+            color: #666;
+            background-color: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-top: 5px;
+          }
+
+          /* Add to existing .file-uploads-section styles */
+          .file-uploads-section .file-upload-group {
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            border: 1px solid #eee;
+            margin-bottom: 15px;
+          }
+
+          .file-input-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+          }
+
+          .file-name {
+            color: #333;
+            font-weight: 500;
+            word-break: break-all;
           }
         }
       `}</style>

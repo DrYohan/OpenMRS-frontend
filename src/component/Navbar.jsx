@@ -169,6 +169,15 @@ const Navbar = () => {
                   Item-GRN Approve
                 </Link>
               </li>
+              <li className="dropdown-item">
+                <Link
+                  to="/report"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Report
+                </Link>
+              </li>
             </ul>
           </li>
         </ul>
