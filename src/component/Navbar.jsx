@@ -178,6 +178,24 @@ const Navbar = () => {
                   Report
                 </Link>
               </li>
+                            <li className="dropdown-item">
+                <Link
+                  to="/vehicle"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Vehicle
+                </Link>
+              </li>
+              <li className="dropdown-item">
+                <Link
+                  to="/vehicleApprove"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Vehicle Approve
+                </Link>
+              </li>
             </ul>
           </li>
         </ul>
