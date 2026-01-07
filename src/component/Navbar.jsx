@@ -6,6 +6,7 @@ const Navbar = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [mainDropdownOpen, setMainDropdownOpen] = useState(false);
   const [assetDropdownOpen, setAssetDropdownOpen] = useState(false);
+  const [reportDropdownOpen, setReportDropdownOpen] = useState(false);
 
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
@@ -23,10 +24,17 @@ const Navbar = () => {
     if (mainDropdownOpen) setMainDropdownOpen(false);
   };
 
+  const toggleReportDropdown = (e) => {
+    e.preventDefault();
+    setReportDropdownOpen(!reportDropdownOpen);
+    if (mainDropdownOpen) setMainDropdownOpen(false);
+  };
+
   const closeAllDropdowns = () => {
     setMainDropdownOpen(false);
     setAssetDropdownOpen(false);
     setIsMenuOpen(false);
+    setReportDropdownOpen(false);
   };
 
   const handleNavClick = () => {
@@ -130,6 +138,7 @@ const Navbar = () => {
               Asset
               <span className="dropdown-arrow">▼</span>
             </button>
+
             <ul
               className={`dropdown-menu ${assetDropdownOpen ? "active" : ""}`}
             >
@@ -169,16 +178,8 @@ const Navbar = () => {
                   Item-GRN Approve
                 </Link>
               </li>
+
               <li className="dropdown-item">
-                <Link
-                  to="/report"
-                  className="dropdown-link"
-                  onClick={handleNavClick}
-                >
-                  Report
-                </Link>
-              </li>
-                            <li className="dropdown-item">
                 <Link
                   to="/vehicle"
                   className="dropdown-link"
@@ -194,6 +195,43 @@ const Navbar = () => {
                   onClick={handleNavClick}
                 >
                   Vehicle Approve
+                </Link>
+              </li>
+            </ul>
+          </li>
+
+          <li
+            className={`nav-item dropdown ${
+              reportDropdownOpen ? "active" : ""
+            }`}
+          >
+            <button
+              className="nav-link dropdown-toggle"
+              onClick={toggleReportDropdown}
+            >
+              Report
+              <span className="dropdown-arrow">▼</span>
+            </button>
+
+            <ul
+              className={`dropdown-menu ${reportDropdownOpen ? "active" : ""}`}
+            >
+              <li className="dropdown-item">
+                <Link
+                  to="/report"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Item Report
+                </Link>
+              </li>
+              <li className="dropdown-item">
+                <Link
+                  to="/vehicleReport"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Vehicle Report
                 </Link>
               </li>
             </ul>

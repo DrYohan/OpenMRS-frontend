@@ -3,8 +3,9 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import "../../css/Report.css";
 
-const Report = () => {
+const VehicleReport = () => {
   const [filters, setFilters] = useState({
+    station: "All",
     location: "All",
     employee: "All",
     mainCategory: "All",
@@ -15,6 +16,7 @@ const Report = () => {
   });
 
   const [dropdownOptions, setDropdownOptions] = useState({
+    stations: [],
     locations: [],
     employees: [
       { id: 1, name: "Employee 1" },
@@ -24,7 +26,6 @@ const Report = () => {
     mainCategories: [],
     middleCategories: [],
     subCategories: [],
-    filteredSubCategories: [],
     centers: [],
     departments: [],
   });
@@ -47,43 +48,11 @@ const Report = () => {
     fetchInitialData();
   }, []);
 
-  useEffect(() => {
-    let filteredSubs = dropdownOptions.subCategories;
-
-    if (filters.mainCategory !== "All") {
-      filteredSubs = filteredSubs.filter(
-        (sub) => String(sub.main_category_id) === String(filters.mainCategory)
-      );
-    }
-
-    if (filters.middleCategory !== "All") {
-      filteredSubs = filteredSubs.filter(
-        (sub) => String(sub.middle_category_id) === String(filters.middleCategory)
-      );
-    }
-
-    setDropdownOptions((prev) => ({
-      ...prev,
-      filteredSubCategories: filteredSubs,
-    }));
-
-    // Reset subCategory filter if current selection is no longer in the filtered list
-    if (
-      filters.subCategory !== "All" &&
-      !filteredSubs.some((sub) => String(sub.id) === String(filters.subCategory))
-    ) {
-      setFilters((prev) => ({ ...prev, subCategory: "All" }));
-    }
-  }, [
-    filters.mainCategory,
-    filters.middleCategory,
-    dropdownOptions.subCategories,
-  ]);
-
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
       const [
+        stationsRes,
         centersRes,
         locationsRes,
         departmentsRes,
@@ -92,35 +61,34 @@ const Report = () => {
         subCatsRes,
         assetsRes,
       ] = await Promise.all([
+        axios.get(`${API_URL}/station`),
         axios.get(`${API_URL}/centers`),
         axios.get(`${API_URL}/locations`),
         axios.get(`${API_URL}/departments`),
         axios.get(`${API_URL}/asset-categories/main-categories`),
         axios.get(`${API_URL}/asset-categories/middle-categories`),
         axios.get(`${API_URL}/asset-categories/sub-categories`),
-        axios.get(`${API_URL}/item-grn-approve/assets/all`),
+        axios.get(`${API_URL}/vehicle/all`),
       ]);
 
       setDropdownOptions((prev) => ({
         ...prev,
-        centers: centersRes.data.success ? centersRes.data.data : [],
-        locations: locationsRes.data.success ? locationsRes.data.data : [],
-        departments: departmentsRes.data.success
-          ? departmentsRes.data.data
-          : [],
-        mainCategories: mainCatsRes.data.success ? mainCatsRes.data.data : [],
-        middleCategories: midCatsRes.data.success ? midCatsRes.data.data : [],
-        subCategories: subCatsRes.data.success ? subCatsRes.data.data : [],
-        filteredSubCategories: subCatsRes.data.success
-          ? subCatsRes.data.data
-          : [],
+        stations: stationsRes.data.data || (Array.isArray(stationsRes.data) ? stationsRes.data : []),
+        centers: centersRes.data.data || (Array.isArray(centersRes.data) ? centersRes.data : []),
+        locations: locationsRes.data.data || (Array.isArray(locationsRes.data) ? locationsRes.data : []),
+        departments: departmentsRes.data.data || (Array.isArray(departmentsRes.data) ? departmentsRes.data : []),
+        mainCategories: mainCatsRes.data.data || (Array.isArray(mainCatsRes.data) ? mainCatsRes.data : []),
+        middleCategories: midCatsRes.data.data || (Array.isArray(midCatsRes.data) ? midCatsRes.data : []),
+        subCategories: subCatsRes.data.data || (Array.isArray(subCatsRes.data) ? subCatsRes.data : []),
       }));
 
       if (assetsRes.data.success) {
         setAssets(assetsRes.data.data);
+      } else if (assetsRes.data.data) {
+        setAssets(assetsRes.data.data);
       }
     } catch (error) {
-      console.error("Error fetching report data:", error);
+      console.error("Error fetching vehicle report data:", error);
       Swal.fire({
         icon: "error",
         title: "Link Error",
@@ -157,60 +125,63 @@ const Report = () => {
 
   const handleGenerateReport = () => {
     setIsLoading(true);
-
     setTimeout(() => {
       let filtered = assets;
 
-      // Center Filter
+      if (filters.station !== "All") {
+        filtered = filtered.filter(
+          (a) =>
+            String(a.StationId) === String(filters.station) ||
+            String(a.station) === String(filters.station)
+        );
+      }
       if (filters.center !== "All") {
         filtered = filtered.filter(
-          (a) => String(a.Center) === String(filters.center)
+          (a) =>
+            String(a.CenterId) === String(filters.center) ||
+            String(a.center) === String(filters.center)
         );
       }
-
-      // Location Filter
       if (filters.location !== "All") {
         filtered = filtered.filter(
-          (a) => String(a.Location) === String(filters.location)
+          (a) =>
+            String(a.LocationId) === String(filters.location) ||
+            String(a.location) === String(filters.location)
         );
       }
-
-      // Department Filter
       if (filters.department !== "All") {
         filtered = filtered.filter(
-          (a) => String(a.Department) === String(filters.department)
+          (a) =>
+            String(a.DepartmentId) === String(filters.department) ||
+            String(a.department) === String(filters.department)
         );
       }
-
-      // Main Category Filter (Indirectly via Sub Categories)
       if (filters.mainCategory !== "All") {
-        const subCatIds = dropdownOptions.subCategories
-          .filter(sub => String(sub.main_category_id) === String(filters.mainCategory))
-          .map(sub => String(sub.id));
-        
         filtered = filtered.filter(
-          (a) => subCatIds.includes(String(a.SubCategoryId || a.SubCategory))
+          (a) =>
+            String(a.MainCategoryId) === String(filters.mainCategory) ||
+            String(a.main_category_id) === String(filters.mainCategory)
         );
       }
-
-      // Middle Category Filter
       if (filters.middleCategory !== "All") {
         filtered = filtered.filter(
-          (a) => String(a.MiddleCategory) === String(filters.middleCategory)
+          (a) =>
+            String(a.MiddleCategoryId) === String(filters.middleCategory) ||
+            String(a.middle_category_id) === String(filters.middleCategory)
         );
       }
-
-      // Sub Category Filter
       if (filters.subCategory !== "All") {
         filtered = filtered.filter(
-          (a) => String(a.SubCategoryId || a.SubCategory) === String(filters.subCategory)
+          (a) =>
+            String(a.SubCategoryId) === String(filters.subCategory) ||
+            String(a.sub_category_id) === String(filters.subCategory)
         );
       }
-
-      // Employee Filter
       if (filters.employee !== "All") {
         filtered = filtered.filter(
-          (a) => String(a.EmployeeSerial || a.Employee) === String(filters.employee)
+          (a) =>
+            String(a.EmployeeId) === String(filters.employee) ||
+            String(a.employee_id) === String(filters.employee)
         );
       }
 
@@ -222,19 +193,10 @@ const Report = () => {
         Swal.fire({
           icon: "info",
           title: "No Results",
-          text: "No assets found matching the selected filters.",
+          text: "No vehicles found matching the selected filters.",
         });
       }
     }, 500);
-  };
-
-  // Helper function to format currency
-  const formatCurrency = (amount) => {
-    if (!amount) return "0.00";
-    return new Intl.NumberFormat("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
   };
 
   // Helper function to format date
@@ -245,6 +207,15 @@ const Report = () => {
     } catch (error) {
       return "N/A";
     }
+  };
+
+  // Helper function to format currency
+  const formatCurrency = (amount) => {
+    if (!amount) return "0.00";
+    return new Intl.NumberFormat("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
   };
 
   const generatePdfPreview = async () => {
@@ -260,7 +231,15 @@ const Report = () => {
     try {
       setIsLoading(true);
 
-      // UPDATED: Added all new columns to PDF template
+      // Get station name for display
+      const selectedStation = dropdownOptions.stations.find(
+        (s) => String(s.station_id) === String(filters.station)
+      );
+      const stationName = selectedStation
+        ? selectedStation.station_name
+        : "All Stations";
+
+      // Generate HTML content for PDF
       const htmlContent = `
         <html>
           <head>
@@ -284,14 +263,14 @@ const Report = () => {
           </head>
           <body>
             <div class="header">
-              <h1>Fixed Asset Inventory Report</h1>
-        
+              <h1>Vehicle Inventory Report</h1>
+              
             </div>
             
             <div class="summary">
               <strong>Report Summary:</strong> ${
                 filteredAssets.length
-              } assets found
+              } vehicles found
             </div>
             
             <div class="filters">
@@ -299,12 +278,17 @@ const Report = () => {
               ${
                 Object.entries(filters)
                   .filter(([key, value]) => value !== "All")
-                  .map(
-                    ([key, value]) =>
-                      `${key
-                        .replace(/([A-Z])/g, " $1")
-                        .toUpperCase()}: ${value}`
-                  )
+                  .map(([key, value]) => {
+                    let displayValue = value;
+                    if (key === "station") {
+                      displayValue = stationName;
+                    }
+                    return `${key
+                      .replace(/([A-Z])/g, " $1")
+                      .replace(/^./, (str) =>
+                        str.toUpperCase()
+                      )}: ${displayValue}`;
+                  })
                   .join(", ") || "No filters applied"
               }
             </div>
@@ -312,29 +296,32 @@ const Report = () => {
             <table>
               <thead>
                 <tr>
-                  <th>Item Code</th>
-                  <th>Item Name</th>
-                  <th>Sub Category</th>
-                  <th>Brand</th>
+                  <th>Reg. ID</th>
+                  <th>Station</th>
+                  <th>Year</th>
+                  <th>Chasis No</th>
+                  <th>Engine No</th>
+                  <th>Color</th>
+                  <th>Seating</th>
+                  <th>Cylinder</th>
                   <th>Model</th>
-                  <th>PO No</th>
-                  <th>Purchase Date</th>
+                  <th>Body Type</th>
+                  <th>Weight (Unl)</th>
+                  <th>Weight (Gross)</th>
+                  <th>Height</th>
+                  <th>Length</th>
+                  <th>Licence Renewal</th>
+                  <th>Insurance Renewal</th>
+                  <th>Purchase Type</th>
+                  <th>Lease Start</th>
+                  <th>Lease End</th>
                   <th>Invoice No</th>
-                  <th>Unit Price</th>
-                  <th>Manufacture</th>
-                  <th>Type</th>
-                  <th>Serial No</th>
-                  <th>Book No</th>
-                  <th>Location</th>
-                  <th>GRN No</th>
-                  <th>GRN Date</th>
-                  <th>Barcode No</th>
+                  <th>Purchase Date</th>
+                  <th>Receive Type</th>
+                  <th>Vote No</th>
+                  <th>Total Amount</th>
+                  <th>Purchase Price</th>
                   <th>Created At</th>
-                  <th>Updated At</th>
-                  <th>Current Item Code</th>
-                  <th>Center</th>
-                  <th>Center Name</th>
-                  <th>Department Name</th>
                 </tr>
               </thead>
               <tbody>
@@ -342,33 +329,46 @@ const Report = () => {
                   .map(
                     (asset) => `
                   <tr>
-                    <td>${asset.ItemCode || ""}</td>
-                    <td>${asset.ItemName || ""}</td>
-                    <td>${asset.SubCategory || ""}</td>
-                    <td>${asset.Brand || ""}</td>
-                    <td>${asset.Model || ""}</td>
-                    <td>${asset.PONo || ""}</td>
+                    <td>${asset.registration_id || ""}</td>
+                    <td>${asset.station || ""}</td>
+                    <td>${asset.year || ""}</td>
+                    <td>${asset.chasis_no || ""}</td>
+                    <td>${asset.engine_no || ""}</td>
+                    <td>${asset.color || ""}</td>
+                    <td>${asset.seating_capacity || ""}</td>
+                    <td>${asset.cylinder_capacity || ""}</td>
+                    <td>${asset.model || ""}</td>
+                    <td>${asset.body_type || ""}</td>
+                    <td>${asset.weight_unlader || ""}</td>
+                    <td>${asset.weight_gross || ""}</td>
+                    <td>${asset.height || ""}</td>
+                    <td>${asset.length || ""}</td>
                     <td class="text-center">${formatDate(
-                      asset.PurchaseDate
+                      asset.licence_renewal
                     )}</td>
-                    <td>${asset.InvoiceNo || ""}</td>
+                    <td class="text-center">${formatDate(
+                      asset.insurance_renewal
+                    )}</td>
+                    <td>${asset.purchase_type || ""}</td>
+                    <td class="text-center">${formatDate(
+                      asset.lease_period_start_date
+                    )}</td>
+                    <td class="text-center">${formatDate(
+                      asset.lease_period_end_date
+                    )}</td>
+                    <td>${asset.invoice_no || ""}</td>
+                    <td class="text-center">${formatDate(
+                      asset.purchased_date
+                    )}</td>
+                    <td>${asset.receive_type || ""}</td>
+                    <td>${asset.vote_no || ""}</td>
                     <td class="text-right">${formatCurrency(
-                      asset.UnitPrice
+                      asset.total_amount
                     )}</td>
-                    <td>${asset.Manufacture || ""}</td>
-                    <td>${asset.Type || ""}</td>
-                    <td>${asset.SerialNo || ""}</td>
-                    <td>${asset.BookNo || ""}</td>
-                    <td>${asset.Location || ""}</td>
-                    <td>${asset.GrnNo || ""}</td>
-                    <td class="text-center">${formatDate(asset.GRNdate)}</td>
-                    <td>${asset.BarcodeNo || ""}</td>
-                    <td class="text-center">${formatDate(asset.CreatedAt)}</td>
-                    <td class="text-center">${formatDate(asset.UpdatedAt)}</td>
-                    <td>${asset.CurrentItemCode || ""}</td>
-                    <td>${asset.Center || ""}</td>
-                    <td>${asset.center_name || ""}</td>
-                    <td>${asset.department_name || ""}</td>
+                    <td class="text-right">${formatCurrency(
+                      asset.purchased_price
+                    )}</td>
+                    <td class="text-center">${formatDate(asset.created_at)}</td>
                   </tr>
                 `
                   )
@@ -378,7 +378,8 @@ const Report = () => {
             
             <div class="footer">
               Generated on: ${new Date().toLocaleString()}<br/>
-             
+              Total Vehicles: ${filteredAssets.length}<br/>
+              
             </div>
           </body>
         </html>
@@ -438,7 +439,7 @@ const Report = () => {
     const url = URL.createObjectURL(pdfPreview.pdfBlob);
 
     link.href = url;
-    link.setAttribute("download", `AssetReport_${new Date().getTime()}.pdf`);
+    link.setAttribute("download", `VehicleReport_${new Date().getTime()}.pdf`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -450,18 +451,6 @@ const Report = () => {
       text: "PDF has been downloaded successfully.",
       timer: 1500,
       showConfirmButton: false,
-    });
-  };
-
-  const closePdfPreview = () => {
-    if (pdfPreview.pdfUrl) {
-      URL.revokeObjectURL(pdfPreview.pdfUrl);
-    }
-    setPdfPreview({
-      show: false,
-      pdfUrl: null,
-      pdfData: null,
-      pdfBlob: null,
     });
   };
 
@@ -478,7 +467,14 @@ const Report = () => {
     try {
       setIsLoading(true);
 
-      // UPDATED: Added all new columns to export templates
+      // Get station name for display
+      const selectedStation = dropdownOptions.stations.find(
+        (s) => String(s.station_id) === String(filters.station)
+      );
+      const stationName = selectedStation
+        ? selectedStation.station_name
+        : "All Stations";
+
       const htmlContent = `
         <html>
           <head>
@@ -496,41 +492,57 @@ const Report = () => {
           </head>
           <body>
             <div class="header">
-              <h1>Fixed Asset Inventory Report</h1>
+              <h1>Vehicle Inventory Report</h1>
               <p>Western Provincial Council - Asset Management System</p>
             </div>
             <div class="filters">
               <strong>Filters Applied:</strong><br/>
-              Location: ${filters.location}, Center: ${
-        filters.center
-      }, Department: ${filters.department}
+              ${
+                Object.entries(filters)
+                  .filter(([key, value]) => value !== "All")
+                  .map(([key, value]) => {
+                    let displayValue = value;
+                    if (key === "station") {
+                      displayValue = stationName;
+                    }
+                    return `${key
+                      .replace(/([A-Z])/g, " $1")
+                      .replace(/^./, (str) =>
+                        str.toUpperCase()
+                      )}: ${displayValue}`;
+                  })
+                  .join(", ") || "No filters applied"
+              }
             </div>
             <table>
               <thead>
                 <tr>
-                  <th>Item Code</th>
-                  <th>Item Name</th>
-                  <th>Sub Category</th>
-                  <th>Brand</th>
+                  <th>Reg. ID</th>
+                  <th>Station</th>
+                  <th>Year</th>
+                  <th>Chasis No</th>
+                  <th>Engine No</th>
+                  <th>Color</th>
+                  <th>Seating</th>
+                  <th>Cylinder</th>
                   <th>Model</th>
-                  <th>PO No</th>
-                  <th>Purchase Date</th>
+                  <th>Body Type</th>
+                  <th>Weight (Unl)</th>
+                  <th>Weight (Gross)</th>
+                  <th>Height</th>
+                  <th>Length</th>
+                  <th>Licence Renewal</th>
+                  <th>Insurance Renewal</th>
+                  <th>Purchase Type</th>
+                  <th>Lease Start</th>
+                  <th>Lease End</th>
                   <th>Invoice No</th>
-                  <th>Unit Price</th>
-                  <th>Manufacture</th>
-                  <th>Type</th>
-                  <th>Serial No</th>
-                  <th>Book No</th>
-                  <th>Location</th>
-                  <th>GRN No</th>
-                  <th>GRN Date</th>
-                  <th>Barcode No</th>
+                  <th>Purchase Date</th>
+                  <th>Receive Type</th>
+                  <th>Vote No</th>
+                  <th>Total Amount</th>
+                  <th>Purchase Price</th>
                   <th>Created At</th>
-                  <th>Updated At</th>
-                  <th>Current Item Code</th>
-                  <th>Center</th>
-                  <th>Center Name</th>
-                  <th>Department Name</th>
                 </tr>
               </thead>
               <tbody>
@@ -538,33 +550,46 @@ const Report = () => {
                   .map(
                     (asset) => `
                   <tr>
-                    <td>${asset.ItemCode || ""}</td>
-                    <td>${asset.ItemName || ""}</td>
-                    <td>${asset.SubCategory || ""}</td>
-                    <td>${asset.Brand || ""}</td>
-                    <td>${asset.Model || ""}</td>
-                    <td>${asset.PONo || ""}</td>
+                    <td>${asset.registration_id || ""}</td>
+                    <td>${asset.station || ""}</td>
+                    <td>${asset.year || ""}</td>
+                    <td>${asset.chasis_no || ""}</td>
+                    <td>${asset.engine_no || ""}</td>
+                    <td>${asset.color || ""}</td>
+                    <td>${asset.seating_capacity || ""}</td>
+                    <td>${asset.cylinder_capacity || ""}</td>
+                    <td>${asset.model || ""}</td>
+                    <td>${asset.body_type || ""}</td>
+                    <td>${asset.weight_unlader || ""}</td>
+                    <td>${asset.weight_gross || ""}</td>
+                    <td>${asset.height || ""}</td>
+                    <td>${asset.length || ""}</td>
                     <td class="text-center">${formatDate(
-                      asset.PurchaseDate
+                      asset.licence_renewal
                     )}</td>
-                    <td>${asset.InvoiceNo || ""}</td>
+                    <td class="text-center">${formatDate(
+                      asset.insurance_renewal
+                    )}</td>
+                    <td>${asset.purchase_type || ""}</td>
+                    <td class="text-center">${formatDate(
+                      asset.lease_period_start_date
+                    )}</td>
+                    <td class="text-center">${formatDate(
+                      asset.lease_period_end_date
+                    )}</td>
+                    <td>${asset.invoice_no || ""}</td>
+                    <td class="text-center">${formatDate(
+                      asset.purchased_date
+                    )}</td>
+                    <td>${asset.receive_type || ""}</td>
+                    <td>${asset.vote_no || ""}</td>
                     <td class="text-right">${formatCurrency(
-                      asset.UnitPrice
+                      asset.total_amount
                     )}</td>
-                    <td>${asset.Manufacture || ""}</td>
-                    <td>${asset.Type || ""}</td>
-                    <td>${asset.SerialNo || ""}</td>
-                    <td>${asset.BookNo || ""}</td>
-                    <td>${asset.Location || ""}</td>
-                    <td>${asset.GrnNo || ""}</td>
-                    <td class="text-center">${formatDate(asset.GRNdate)}</td>
-                    <td>${asset.BarcodeNo || ""}</td>
-                    <td class="text-center">${formatDate(asset.CreatedAt)}</td>
-                    <td class="text-center">${formatDate(asset.UpdatedAt)}</td>
-                    <td>${asset.CurrentItemCode || ""}</td>
-                    <td>${asset.Center || ""}</td>
-                    <td>${asset.center_name || ""}</td>
-                    <td>${asset.department_name || ""}</td>
+                    <td class="text-right">${formatCurrency(
+                      asset.purchased_price
+                    )}</td>
+                    <td class="text-center">${formatDate(asset.created_at)}</td>
                   </tr>
                 `
                   )
@@ -572,7 +597,14 @@ const Report = () => {
               </tbody>
             </table>
             <div class="footer">
-              Generated on: ${new Date().toLocaleString()}
+              Generated on: ${new Date().toLocaleString()}<br/>
+              Total Vehicles: ${filteredAssets.length}<br/>
+              Total Value: ${formatCurrency(
+                filteredAssets.reduce(
+                  (sum, v) => sum + (v.purchased_price || 0),
+                  0
+                )
+              )}
             </div>
           </body>
         </html>
@@ -600,12 +632,13 @@ const Report = () => {
       const link = document.createElement("a");
       link.href = url;
 
-      let extension = "xlsx";
+      let extension = "pdf";
+      if (recipe === "html-to-xlsx") extension = "xlsx";
       if (recipe === "html-to-docx") extension = "docx";
 
       link.setAttribute(
         "download",
-        `AssetReport_${new Date().getTime()}.${extension}`
+        `VehicleReport_${new Date().getTime()}.${extension}`
       );
       document.body.appendChild(link);
       link.click();
@@ -614,7 +647,7 @@ const Report = () => {
       Swal.fire({
         icon: "success",
         title: "Exported",
-        text: `Report exported as ${extension.toUpperCase()} successfully.`,
+        text: `Vehicle report exported as ${extension.toUpperCase()} successfully.`,
       });
     } catch (error) {
       console.error("jsreport export error:", error);
@@ -628,8 +661,21 @@ const Report = () => {
     }
   };
 
+  const closePdfPreview = () => {
+    if (pdfPreview.pdfUrl) {
+      URL.revokeObjectURL(pdfPreview.pdfUrl);
+    }
+    setPdfPreview({
+      show: false,
+      pdfUrl: null,
+      pdfData: null,
+      pdfBlob: null,
+    });
+  };
+
   const handleCancel = () => {
     setFilters({
+      station: "All",
       location: "All",
       employee: "All",
       mainCategory: "All",
@@ -645,7 +691,7 @@ const Report = () => {
   return (
     <div className="item-grn-page">
       <div className="item-grn-container">
-        <h1 className="item-grn-title">Asset Inventory Report</h1>
+        <h1 className="item-grn-title">Vehicle Inventory Report</h1>
 
         <div className="item-grn-form">
           <div className="form-section">
@@ -653,6 +699,25 @@ const Report = () => {
 
             <div className="paired-section">
               <div className="paired-column">
+                <div className="form-group">
+                  <label className="form-label">Station</label>
+                  <div className="input-wrapper">
+                    <select
+                      name="station"
+                      value={filters.station}
+                      onChange={handleChange}
+                      className="form-input"
+                    >
+                      <option value="All">All Stations</option>
+                      {dropdownOptions.stations.map((s) => (
+                        <option key={s.id} value={s.station_id}>
+                          {s.station_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div className="form-group">
                   <label className="form-label">Location</label>
                   <div className="input-wrapper">
@@ -704,25 +769,6 @@ const Report = () => {
                       {dropdownOptions.mainCategories.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.category_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Sub Category</label>
-                  <div className="input-wrapper">
-                    <select
-                      name="subCategory"
-                      value={filters.subCategory}
-                      onChange={handleChange}
-                      className="form-input"
-                    >
-                      <option value="All">All Sub Categories</option>
-                      {dropdownOptions.filteredSubCategories.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.sub_category_name}
                         </option>
                       ))}
                     </select>
@@ -800,6 +846,32 @@ const Report = () => {
                     </select>
                   </div>
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label">Sub Category</label>
+                  <div className="input-wrapper">
+                    <select
+                      name="subCategory"
+                      value={filters.subCategory}
+                      onChange={handleChange}
+                      className="form-input"
+                    >
+                      <option value="All">All Sub Categories</option>
+                      {dropdownOptions.subCategories
+                        .filter(
+                          (c) =>
+                            filters.mainCategory === "All" ||
+                            String(c.main_category_id) ===
+                              String(filters.mainCategory)
+                        )
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.sub_category_name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -861,8 +933,17 @@ const Report = () => {
           <div className="form-section" style={{ marginTop: "2rem" }}>
             <div className="report-summary" style={{ marginBottom: "20px" }}>
               <h2 className="form-section-title">
-                Report Data ({filteredAssets.length} Items Found)
+                Report Data ({filteredAssets.length} Vehicles Found)
               </h2>
+              <div style={{ fontSize: "14px", color: "#2c3e50" }}>
+                <strong>Total Value:</strong>{" "}
+                {formatCurrency(
+                  filteredAssets.reduce(
+                    (sum, v) => sum + (v.purchased_price || 0),
+                    0
+                  )
+                )}
+              </div>
             </div>
             <div
               className="asset-table-container"
@@ -871,69 +952,77 @@ const Report = () => {
               <table className="asset-allocation-table">
                 <thead>
                   <tr>
-                    <th>Item Code</th>
-                    <th>Item Name</th>
-                    <th>Sub Category</th>
-                    <th>Brand</th>
+                    <th>Reg. ID</th>
+                    <th>Station</th>
+                    <th>Year</th>
+                    <th>Chasis No</th>
+                    <th>Engine No</th>
+                    <th>Color</th>
+                    <th>Seating</th>
+                    <th>Cylinder</th>
                     <th>Model</th>
-                    <th>PO No</th>
-                    <th>Purchase Date</th>
+                    <th>Body Type</th>
+                    <th>Weight (Unl)</th>
+                    <th>Weight (Gross)</th>
+                    <th>Height</th>
+                    <th>Length</th>
+                    <th>Licence Renewal</th>
+                    <th>Insurance Renewal</th>
+                    <th>Purchase Type</th>
+                    <th>Lease Start</th>
+                    <th>Lease End</th>
                     <th>Invoice No</th>
-                    <th>Unit Price</th>
-                    <th>Manufacture</th>
-                    <th>Type</th>
-                    <th>Serial No</th>
-                    <th>Book No</th>
-                    <th>Location</th>
-                    <th>GRN No</th>
-                    <th>GRN Date</th>
-                    <th>Barcode No</th>
+                    <th>Purchase Date</th>
+                    <th>Receive Type</th>
+                    <th>Vote No</th>
+                    <th>Total Amount</th>
+                    <th>Purchase Price</th>
                     <th>Created At</th>
-                    <th>Updated At</th>
-                    <th>Current Item Code</th>
-                    <th>Center</th>
-                    <th>Center Name</th>
-                    <th>Department Name</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredAssets.length > 0 ? (
                     filteredAssets.map((asset, index) => (
-                      <tr key={asset.ItemSerial || index}>
-                        <td>{asset.ItemCode || ""}</td>
-                        <td>{asset.ItemName || ""}</td>
-                        <td>{asset.SubCategory || ""}</td>
-                        <td>{asset.Brand || ""}</td>
-                        <td>{asset.Model || ""}</td>
-                        <td>{asset.PONo || ""}</td>
-                        <td>{formatDate(asset.PurchaseDate)}</td>
-                        <td>{asset.InvoiceNo || ""}</td>
+                      <tr key={asset.id || index}>
+                        <td>{asset.registration_id || ""}</td>
+                        <td>{asset.station || ""}</td>
+                        <td>{asset.year || ""}</td>
+                        <td>{asset.chasis_no || ""}</td>
+                        <td>{asset.engine_no || ""}</td>
+                        <td>{asset.color || ""}</td>
+                        <td>{asset.seating_capacity || ""}</td>
+                        <td>{asset.cylinder_capacity || ""}</td>
+                        <td>{asset.model || ""}</td>
+                        <td>{asset.body_type || ""}</td>
+                        <td>{asset.weight_unlader || ""}</td>
+                        <td>{asset.weight_gross || ""}</td>
+                        <td>{asset.height || ""}</td>
+                        <td>{asset.length || ""}</td>
+                        <td>{formatDate(asset.licence_renewal)}</td>
+                        <td>{formatDate(asset.insurance_renewal)}</td>
+                        <td>{asset.purchase_type || ""}</td>
+                        <td>{formatDate(asset.lease_period_start_date)}</td>
+                        <td>{formatDate(asset.lease_period_end_date)}</td>
+                        <td>{asset.invoice_no || ""}</td>
+                        <td>{formatDate(asset.purchased_date)}</td>
+                        <td>{asset.receive_type || ""}</td>
+                        <td>{asset.vote_no || ""}</td>
                         <td style={{ textAlign: "right" }}>
-                          {formatCurrency(asset.UnitPrice)}
+                          {formatCurrency(asset.total_amount)}
                         </td>
-                        <td>{asset.Manufacture || ""}</td>
-                        <td>{asset.Type || ""}</td>
-                        <td>{asset.SerialNo || ""}</td>
-                        <td>{asset.BookNo || ""}</td>
-                        <td>{asset.Location || ""}</td>
-                        <td>{asset.GrnNo || ""}</td>
-                        <td>{formatDate(asset.GRNdate)}</td>
-                        <td>{asset.BarcodeNo || ""}</td>
-                        <td>{formatDate(asset.CreatedAt)}</td>
-                        <td>{formatDate(asset.UpdatedAt)}</td>
-                        <td>{asset.CurrentItemCode || ""}</td>
-                        <td>{asset.Center || ""}</td>
-                        <td>{asset.center_name || ""}</td>
-                        <td>{asset.department_name || ""}</td>
+                        <td style={{ textAlign: "right" }}>
+                          {formatCurrency(asset.purchased_price)}
+                        </td>
+                        <td>{formatDate(asset.created_at)}</td>
                       </tr>
                     ))
                   ) : (
                     <tr>
                       <td
-                        colSpan="23"
+                        colSpan="26"
                         style={{ textAlign: "center", padding: "2rem" }}
                       >
-                        No assets found for the selected filters.
+                        No vehicles found for the selected filters.
                       </td>
                     </tr>
                   )}
@@ -952,7 +1041,7 @@ const Report = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="modal-header">
-              <h2 className="modal-title">PDF Report Preview</h2>
+              <h2 className="modal-title">Vehicle Report - PDF Preview</h2>
               <button className="modal-close-btn" onClick={closePdfPreview}>
                 ×
               </button>
@@ -1083,10 +1172,6 @@ const Report = () => {
           border: 1px solid #dee2e6;
         }
 
-        .total-value {
-          font-weight: bold;
-        }
-
         @media (max-width: 768px) {
           .pdf-preview-modal {
             width: 98%;
@@ -1111,4 +1196,4 @@ const Report = () => {
   );
 };
 
-export default Report;
+export default VehicleReport;
