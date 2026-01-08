@@ -197,6 +197,26 @@ const Navbar = () => {
                   Vehicle Approve
                 </Link>
               </li>
+
+              <li className="dropdown-item">
+                <Link
+                  to="/landDetails"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Land Details
+                </Link>
+              </li>
+
+              <li className="dropdown-item">
+                <Link
+                  to="/buildingDetails"
+                  className="dropdown-link"
+                  onClick={handleNavClick}
+                >
+                  Building Details
+                </Link>
+              </li>
             </ul>
           </li>
 

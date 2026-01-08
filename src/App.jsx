@@ -15,6 +15,8 @@ import Report from "./component/pages/Report";
 import Vehicle from "./component/pages/vehicle";
 import VehicleApprove from "./component/pages/vehicleApprove";
 import VehicleReport from "./component/pages/VehicleReport";
+import LandDetails from "./component/pages/landDetails";
+import BuildingDetails from "./component/pages/buildingDetails";
 
 function App() {
   return (
@@ -42,6 +44,8 @@ function App() {
             <Route path="/vehicle" element={<Vehicle />} />
             <Route path="/vehicleApprove" element={<VehicleApprove />} />
             <Route path="/vehicleReport" element={<VehicleReport />} />
+            <Route path="/landDetails" element={<LandDetails />} />
+            <Route path="/buildingDetails" element={<BuildingDetails />} />
           </Routes>
         </main>
         <Footer />

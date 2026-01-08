@@ -6,28 +6,16 @@ import "../../css/Report.css";
 const VehicleReport = () => {
   const [filters, setFilters] = useState({
     station: "All",
-    location: "All",
-    employee: "All",
     mainCategory: "All",
-    subCategory: "All",
-    center: "All",
-    department: "All",
     middleCategory: "All",
+    subCategory: "All",
   });
 
   const [dropdownOptions, setDropdownOptions] = useState({
     stations: [],
-    locations: [],
-    employees: [
-      { id: 1, name: "Employee 1" },
-      { id: 2, name: "Employee 2" },
-      { id: 3, name: "Employee 3" },
-    ],
     mainCategories: [],
     middleCategories: [],
     subCategories: [],
-    centers: [],
-    departments: [],
   });
 
   const [assets, setAssets] = useState([]);
@@ -51,35 +39,29 @@ const VehicleReport = () => {
   const fetchInitialData = async () => {
     setIsLoading(true);
     try {
-      const [
-        stationsRes,
-        centersRes,
-        locationsRes,
-        departmentsRes,
-        mainCatsRes,
-        midCatsRes,
-        subCatsRes,
-        assetsRes,
-      ] = await Promise.all([
-        axios.get(`${API_URL}/station`),
-        axios.get(`${API_URL}/centers`),
-        axios.get(`${API_URL}/locations`),
-        axios.get(`${API_URL}/departments`),
-        axios.get(`${API_URL}/asset-categories/main-categories`),
-        axios.get(`${API_URL}/asset-categories/middle-categories`),
-        axios.get(`${API_URL}/asset-categories/sub-categories`),
-        axios.get(`${API_URL}/vehicle/all`),
-      ]);
+      const [stationsRes, mainCatsRes, midCatsRes, subCatsRes, assetsRes] =
+        await Promise.all([
+          axios.get(`${API_URL}/station`),
+          axios.get(`${API_URL}/asset-categories/main-categories`),
+          axios.get(`${API_URL}/asset-categories/middle-categories`),
+          axios.get(`${API_URL}/asset-categories/sub-categories`),
+          axios.get(`${API_URL}/vehicle/all`),
+        ]);
 
       setDropdownOptions((prev) => ({
         ...prev,
-        stations: stationsRes.data.data || (Array.isArray(stationsRes.data) ? stationsRes.data : []),
-        centers: centersRes.data.data || (Array.isArray(centersRes.data) ? centersRes.data : []),
-        locations: locationsRes.data.data || (Array.isArray(locationsRes.data) ? locationsRes.data : []),
-        departments: departmentsRes.data.data || (Array.isArray(departmentsRes.data) ? departmentsRes.data : []),
-        mainCategories: mainCatsRes.data.data || (Array.isArray(mainCatsRes.data) ? mainCatsRes.data : []),
-        middleCategories: midCatsRes.data.data || (Array.isArray(midCatsRes.data) ? midCatsRes.data : []),
-        subCategories: subCatsRes.data.data || (Array.isArray(subCatsRes.data) ? subCatsRes.data : []),
+        stations:
+          stationsRes.data.data ||
+          (Array.isArray(stationsRes.data) ? stationsRes.data : []),
+        mainCategories:
+          mainCatsRes.data.data ||
+          (Array.isArray(mainCatsRes.data) ? mainCatsRes.data : []),
+        middleCategories:
+          midCatsRes.data.data ||
+          (Array.isArray(midCatsRes.data) ? midCatsRes.data : []),
+        subCategories:
+          subCatsRes.data.data ||
+          (Array.isArray(subCatsRes.data) ? subCatsRes.data : []),
       }));
 
       if (assetsRes.data.success) {
@@ -128,60 +110,46 @@ const VehicleReport = () => {
     setTimeout(() => {
       let filtered = assets;
 
+      // Filter by Station
       if (filters.station !== "All") {
         filtered = filtered.filter(
           (a) =>
-            String(a.StationId) === String(filters.station) ||
-            String(a.station) === String(filters.station)
+            String(a.station) === String(filters.station) ||
+            String(a.StationId) === String(filters.station)
         );
       }
-      if (filters.center !== "All") {
-        filtered = filtered.filter(
-          (a) =>
-            String(a.CenterId) === String(filters.center) ||
-            String(a.center) === String(filters.center)
-        );
-      }
-      if (filters.location !== "All") {
-        filtered = filtered.filter(
-          (a) =>
-            String(a.LocationId) === String(filters.location) ||
-            String(a.location) === String(filters.location)
-        );
-      }
-      if (filters.department !== "All") {
-        filtered = filtered.filter(
-          (a) =>
-            String(a.DepartmentId) === String(filters.department) ||
-            String(a.department) === String(filters.department)
-        );
-      }
+
+      // Filter by Main Category (Indirectly via Middle Categories if Main Category not in asset)
       if (filters.mainCategory !== "All") {
+        // Get all valid middle category codes for the selected main category
+        const validMiddleCatCodes = dropdownOptions.middleCategories
+          .filter(
+            (mc) => String(mc.main_category_id) === String(filters.mainCategory)
+          )
+          .map((mc) => String(mc.middle_category_id)); // Using middle_category_id (Code)
+
         filtered = filtered.filter(
           (a) =>
-            String(a.MainCategoryId) === String(filters.mainCategory) ||
+            validMiddleCatCodes.includes(String(a.middle_category)) ||
             String(a.main_category_id) === String(filters.mainCategory)
         );
       }
+
+      // Filter by Middle Category
       if (filters.middleCategory !== "All") {
         filtered = filtered.filter(
           (a) =>
-            String(a.MiddleCategoryId) === String(filters.middleCategory) ||
+            String(a.middle_category) === String(filters.middleCategory) ||
             String(a.middle_category_id) === String(filters.middleCategory)
         );
       }
+
+      // Filter by Sub Category
       if (filters.subCategory !== "All") {
         filtered = filtered.filter(
           (a) =>
-            String(a.SubCategoryId) === String(filters.subCategory) ||
+            String(a.sub_category) === String(filters.subCategory) ||
             String(a.sub_category_id) === String(filters.subCategory)
-        );
-      }
-      if (filters.employee !== "All") {
-        filtered = filtered.filter(
-          (a) =>
-            String(a.EmployeeId) === String(filters.employee) ||
-            String(a.employee_id) === String(filters.employee)
         );
       }
 
@@ -599,12 +567,7 @@ const VehicleReport = () => {
             <div class="footer">
               Generated on: ${new Date().toLocaleString()}<br/>
               Total Vehicles: ${filteredAssets.length}<br/>
-              Total Value: ${formatCurrency(
-                filteredAssets.reduce(
-                  (sum, v) => sum + (v.purchased_price || 0),
-                  0
-                )
-              )}
+             
             </div>
           </body>
         </html>
@@ -676,13 +639,9 @@ const VehicleReport = () => {
   const handleCancel = () => {
     setFilters({
       station: "All",
-      location: "All",
-      employee: "All",
       mainCategory: "All",
-      subCategory: "All",
-      center: "All",
-      department: "All",
       middleCategory: "All",
+      subCategory: "All",
     });
     setShowResults(false);
     closePdfPreview();
@@ -719,44 +678,6 @@ const VehicleReport = () => {
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">Location</label>
-                  <div className="input-wrapper">
-                    <select
-                      name="location"
-                      value={filters.location}
-                      onChange={handleChange}
-                      className="form-input"
-                    >
-                      <option value="All">All Locations</option>
-                      {dropdownOptions.locations.map((l) => (
-                        <option key={l.id} value={l.location_id}>
-                          {l.location_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Employee</label>
-                  <div className="input-wrapper">
-                    <select
-                      name="employee"
-                      value={filters.employee}
-                      onChange={handleChange}
-                      className="form-input"
-                    >
-                      <option value="All">All Employees</option>
-                      {dropdownOptions.employees.map((e) => (
-                        <option key={e.id} value={e.id}>
-                          {e.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-group">
                   <label className="form-label">Main Category</label>
                   <div className="input-wrapper">
                     <select
@@ -778,50 +699,6 @@ const VehicleReport = () => {
 
               <div className="paired-column">
                 <div className="form-group">
-                  <label className="form-label">Center</label>
-                  <div className="input-wrapper">
-                    <select
-                      name="center"
-                      value={filters.center}
-                      onChange={handleChange}
-                      className="form-input"
-                    >
-                      <option value="All">All Centers</option>
-                      {dropdownOptions.centers.map((c) => (
-                        <option key={c.id} value={c.center_id}>
-                          {c.center_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Department</label>
-                  <div className="input-wrapper">
-                    <select
-                      name="department"
-                      value={filters.department}
-                      onChange={handleChange}
-                      className="form-input"
-                    >
-                      <option value="All">All Departments</option>
-                      {dropdownOptions.departments
-                        .filter(
-                          (d) =>
-                            filters.center === "All" ||
-                            d.center_id === filters.center
-                        )
-                        .map((d) => (
-                          <option key={d.id} value={d.department_id}>
-                            {d.department_name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-group">
                   <label className="form-label">Middle Category</label>
                   <div className="input-wrapper">
                     <select
@@ -839,7 +716,7 @@ const VehicleReport = () => {
                               String(filters.mainCategory)
                         )
                         .map((c) => (
-                          <option key={c.id} value={c.id}>
+                          <option key={c.id} value={c.middle_category_id}>
                             {c.middle_category_name}
                           </option>
                         ))}
@@ -865,7 +742,7 @@ const VehicleReport = () => {
                               String(filters.mainCategory)
                         )
                         .map((c) => (
-                          <option key={c.id} value={c.id}>
+                          <option key={c.id} value={c.sub_category_id}>
                             {c.sub_category_name}
                           </option>
                         ))}
@@ -935,15 +812,6 @@ const VehicleReport = () => {
               <h2 className="form-section-title">
                 Report Data ({filteredAssets.length} Vehicles Found)
               </h2>
-              <div style={{ fontSize: "14px", color: "#2c3e50" }}>
-                <strong>Total Value:</strong>{" "}
-                {formatCurrency(
-                  filteredAssets.reduce(
-                    (sum, v) => sum + (v.purchased_price || 0),
-                    0
-                  )
-                )}
-              </div>
             </div>
             <div
               className="asset-table-container"
