@@ -4,11 +4,15 @@ import axios from "axios";
 import Select from "react-select";
 import Swal from "sweetalert2";
 import { FiFileText, FiX } from "react-icons/fi";
+const API_BASE_URL = "http://localhost:3000/api";
 
 
 const BuildingDetails = () => {
     const [formData, setFormData] = useState({
         station: "",
+        mainCategoryId: "",
+        middleCategoryId: "",
+        subCategoryId: "",
         landId: "",
         buildingId: "",
         buildingName: "",
@@ -23,7 +27,10 @@ const BuildingDetails = () => {
 
     const clearForm = () => {
         setFormData({
-            stationName: "",
+            station: "",
+            mainCategoryId: "",
+            middleCategoryId: "",
+            subCategoryId: "",
             landId: "",
             buildingId: "",
             buildingName: "",
@@ -47,6 +54,9 @@ const BuildingDetails = () => {
     const [buildingId, setBuildingId] = useState([]);
     const [filePreviews, setFilePreviews] = useState([]);
 
+    const [mainCategoryOptions, setMainCategoryOptions] = useState([]);
+    const [middleCategoryOptions, setMiddleCategoryOptions] = useState([]);
+    const [subCategoryOptions, setSubCategoryOptions] = useState([]);
 
     // fetch stations
     useEffect(() => {
@@ -64,6 +74,43 @@ const BuildingDetails = () => {
         }
         fetchStations();
     }, [])
+
+    useEffect(()=>{
+      const fetchAllCategories = async () => {
+        try {
+          const [mainCategoryRes, middleCategoryRes, subCategoryRes] = await Promise.all([
+            axios.get(`${API_BASE_URL}/asset-categories/main-categories`),
+            axios.get(`${API_BASE_URL}/asset-categories/middle-categories`),
+            axios.get(`${API_BASE_URL}/asset-categories/sub-categories`),
+          ])
+
+          console.log("mainCategoryRes", mainCategoryRes.data.data)
+          setMainCategoryOptions(
+            mainCategoryRes.data.data.map(d=>({
+              value: d.id,
+              label: d.category_name
+            }))
+          );
+          setMiddleCategoryOptions(
+            middleCategoryRes.data.data.map(d=>({
+              value: d.id,
+              label: d.middle_category_name
+            }))
+          );
+          setSubCategoryOptions(
+            subCategoryRes.data.data.map(d=>({
+              value: d.id,
+              label: d.sub_category_name
+            }))
+          );
+        } catch (error) {
+          console.error("Error fetching categories:", error);
+          showError("Error fetching categories");
+        }
+      }
+      fetchAllCategories();
+    }, [])
+
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -173,6 +220,9 @@ const BuildingDetails = () => {
             setFormData({
                 ...formData,
                 station: data.station || "",
+                mainCategoryId: data.main_category_id || "",
+                middleCategoryId: data.middle_category_id || "",
+                subCategoryId: data.sub_category_id || "",
                 landId: data.land_id || "",
                 buildingId: data.building_id || "",
                 buildingName: data.building_name || "",
@@ -352,6 +402,81 @@ const BuildingDetails = () => {
                                     isSearchable
                                 />
                             </div>
+
+
+                            {/* Mian Category */}
+                            <div className="form-group">
+                                <label className="form-label">
+                                Mian Category <span className="required">*</span>
+                                </label>
+                                <Select
+                                    name="mainCategory"
+                                    placeholder="Select Mian Category"
+                                    options={mainCategoryOptions}
+                                    value={
+                                    mainCategoryOptions.find(
+                                        option => option.value === formData.mainCategoryId
+                                    ) || null
+                                    }
+                                    onChange={(selected) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        mainCategoryId: selected ? selected.value : null
+                                    }));
+                                    }}
+                                    isSearchable
+                                />
+                            </div>
+
+                            {/* Middle Category */}
+                            <div className="form-group">
+                                <label className="form-label">
+                                Middle Category <span className="required">*</span>
+                                </label>
+                                <Select
+                                    name="middleCategory"
+                                    placeholder="Select Middle Category"
+                                    options={middleCategoryOptions}
+                                    value={
+                                    middleCategoryOptions.find(
+                                        option => option.value === formData.middleCategoryId
+                                    ) || null
+                                    }
+                                    onChange={(selected) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        middleCategoryId: selected ? selected.value : null
+                                    }));
+                                    }}
+                                    isSearchable
+                                />
+                            </div>
+
+
+                            {/* Sub Category */}
+                            <div className="form-group">
+                                <label className="form-label">
+                                Sub Category <span className="required">*</span>
+                                </label>
+                                <Select
+                                    name="subCategory"
+                                    placeholder="Select Sub Category"
+                                    options={subCategoryOptions}
+                                    value={
+                                    subCategoryOptions.find(
+                                        option => option.value === formData.subCategoryId
+                                    ) || null
+                                    }
+                                    onChange={(selected) => {
+                                    setFormData(prev => ({
+                                        ...prev,
+                                        subCategoryId: selected ? selected.value : null
+                                    }));
+                                    }}
+                                    isSearchable
+                                />
+                            </div>
+
 
                             {/* Land Id */}
                             {/*               <div className="form-group">

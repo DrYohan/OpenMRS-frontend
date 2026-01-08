@@ -25,6 +25,9 @@ const statusOptions = [
 // initial form state 
 const INITIAL_FORM_STATE = {
   station: "",
+  mainCategoryId: "",
+  middleCategoryId: "",
+  subCategoryId: "",
   landId: "",
   landName: "",
   landDescription: "",
@@ -65,13 +68,16 @@ const LandDetails = () => {
     const [landId, setlandId] = useState([]);
     const [objectUrls, setObjectUrls] = useState([]);
     const [filePreviews, setFilePreviews] = useState([]);
+    const [mainCategoryOptions, setMainCategoryOptions] = useState([]);
+    const [middleCategoryOptions, setMiddleCategoryOptions] = useState([]);
+    const [subCategoryOptions, setSubCategoryOptions] = useState([]);
 
 
     // fetch stations
     useEffect(() => {
       const fetchStations = async () => {
         try {
-          const response = await axios.get("http://localhost:3000/api/station")
+          const response = await axios.get(`${API_BASE_URL}/station`);
           setStationOptions(response.data.data.map(d =>({
             value: d.station_id,
             label: d.station_name
@@ -84,6 +90,39 @@ const LandDetails = () => {
       fetchStations();
     }, [])
 
+    useEffect(()=>{
+      const fetchAllCategories = async () => {
+        try {
+          const [mainCategoryRes, middleCategoryRes, subCategoryRes] = await Promise.all([
+            axios.get(`${API_BASE_URL}/asset-categories/main-categories`),
+            axios.get(`${API_BASE_URL}/asset-categories/middle-categories`),
+            axios.get(`${API_BASE_URL}/asset-categories/sub-categories`),
+          ])
+          setMainCategoryOptions(
+            mainCategoryRes.data.data.map(d=>({
+              value: d.id,
+              label: d.category_name
+            }))
+          );
+          setMiddleCategoryOptions(
+            middleCategoryRes.data.data.map(d=>({
+              value: d.id,
+              label: d.middle_category_name
+            }))
+          );
+          setSubCategoryOptions(
+            subCategoryRes.data.data.map(d=>({
+              value: d.id,
+              label: d.sub_category_name
+            }))
+          );
+        } catch (error) {
+          console.error("Error fetching categories:", error);
+          showError("Error fetching categories");
+        }
+      }
+      fetchAllCategories();
+    }, [])
 
     // Clean up object URLs on unmount
     useEffect(() => {
@@ -116,6 +155,9 @@ const LandDetails = () => {
         setFormData(prev => ({
           ...prev,
           station: data.station || "",
+          mainCategoryId: data.main_category_id || "",
+          middleCategoryId: data.middle_category_id || "",
+          subCategoryId: data.sub_category_id || "",
           landId: data.land_id || "",
           landName: data.land_name || "",
           landDescription: data.land_description || "",
@@ -144,10 +186,10 @@ const LandDetails = () => {
 
         const landImages = data.land_image
         ? data.land_image.split("@@@").map((path) => ({
-                file: null,          // new upload is empty
+                file: null,        
                 preview: null,
-                isExisting: true,    // mark as existing
-                serverPath: path,    // store path for future updates
+                isExisting: true,    
+                serverPath: path,    
               }))
             : [{ file: null, preview: null, isExisting: false, serverPath: "" }];
             setFiles(landImages);
@@ -185,6 +227,42 @@ const LandDetails = () => {
         });
         return false;
       }
+
+      if(formData.purchasedDate && formData.registeredDate){
+        const selectedpurchasedDate = new Date(formData.purchasedDate);
+        const selectedRegisteredDate = new Date(formData.registeredDate);
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        selectedpurchasedDate.setHours(0, 0, 0, 0);
+        selectedRegisteredDate.setHours(0, 0, 0, 0);
+
+        if(selectedRegisteredDate > today){
+          Swal.fire({
+            title: "Invalid Date",
+            text: "Registered date must be earlier than today.",
+            icon: "warning",
+           });
+          return false;
+        }
+        if(selectedpurchasedDate > today){
+          Swal.fire({
+            title: "Invalid Date",
+            text: "Purchased date must be earlier than today.",
+            icon: "warning",
+           });
+          return false;
+        }
+        if (selectedpurchasedDate > selectedRegisteredDate) {
+          Swal.fire({
+            title: "Invalid Date Order",
+            text: "Purchased date cannot be later than registered date.",
+            icon: "warning",
+          });
+          return false;
+        }
+
+      }
       return true;
     }, [formData]);
 
@@ -205,7 +283,6 @@ const LandDetails = () => {
       if (!result.isConfirmed) return;
 
       setIsLoading(true);
-
       try {
         const formDataWithFile = new FormData();
 
@@ -279,7 +356,6 @@ const LandDetails = () => {
       }
     };
 
-
     const clearForm = () => {
       setFormData(INITIAL_FORM_STATE);
       setFiles([{ ...INITIAL_FILE_STATE }]);
@@ -291,13 +367,11 @@ const LandDetails = () => {
     const handleLookup  = () => {
       setUpdateState(true);
     }
-  
     useEffect(() => {
       if (!updateState) return;
       if (landId.length > 0) return;
       fetchAllLandId();
     }, [updateState, landId.length]);
-
 
     const handleCancel  = () => {
       clearForm();
@@ -390,6 +464,80 @@ const LandDetails = () => {
                     isSearchable
                   />
               </div>
+              
+              {/* Mian Category */}
+              <div className="form-group">
+                <label className="form-label">
+                  Mian Category <span className="required">*</span>
+                </label>
+                  <Select
+                    name="mainCategory"
+                    placeholder="Select Mian Category"
+                    options={mainCategoryOptions}
+                    value={
+                      mainCategoryOptions.find(
+                        option => option.value === formData.mainCategoryId
+                      ) || null
+                    }
+                    onChange={(selected) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        mainCategoryId: selected ? selected.value : null
+                      }));
+                    }}
+                    isSearchable
+                  />
+              </div>
+
+              {/* Middle Category */}
+              <div className="form-group">
+                <label className="form-label">
+                  Middle Category <span className="required">*</span>
+                </label>
+                  <Select
+                    name="middleCategory"
+                    placeholder="Select Middle Category"
+                    options={middleCategoryOptions}
+                    value={
+                      middleCategoryOptions.find(
+                        option => option.value === formData.middleCategoryId
+                      ) || null
+                    }
+                    onChange={(selected) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        middleCategoryId: selected ? selected.value : null
+                      }));
+                    }}
+                    isSearchable
+                  />
+              </div>
+
+
+              {/* Sub Category */}
+              <div className="form-group">
+                <label className="form-label">
+                  Sub Category <span className="required">*</span>
+                </label>
+                  <Select
+                    name="subCategory"
+                    placeholder="Select Sub Category"
+                    options={subCategoryOptions}
+                    value={
+                      subCategoryOptions.find(
+                        option => option.value === formData.subCategoryId
+                      ) || null
+                    }
+                    onChange={(selected) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        subCategoryId: selected ? selected.value : null
+                      }));
+                    }}
+                    isSearchable
+                  />
+              </div>
+
 
               {/* Land Id */}
               <div className="form-group">
@@ -451,7 +599,7 @@ const LandDetails = () => {
                     value={formData.landDescription}
                     onChange={handleChange}
                     placeholder="Enter land description..."
-                    rows={2}   
+                    rows={1}   
                 />
               </div>
 
@@ -485,6 +633,7 @@ const LandDetails = () => {
                 <input
                   type="date"
                   className="form-control"
+                  max={new Date().toISOString().split("T")[0]}
                   name="purchasedDate"
                   value={formData.purchasedDate}
                   onChange={handleChange}
@@ -678,6 +827,7 @@ const LandDetails = () => {
                   type="date"
                   className="form-control"
                   name="registeredDate"
+                  max={new Date().toISOString().split("T")[0]}
                   value={formData.registeredDate}
                   onChange={handleChange}
                   disabled={isLoading}
